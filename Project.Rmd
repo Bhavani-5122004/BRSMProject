@@ -14,6 +14,7 @@ library(stringr)
 ```
 
 ```{r}
+# Bhavani - Dataset creation
 process_file <- function(file_path) {
   
   # reading the log files and finding the blocks
