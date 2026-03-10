@@ -1,0 +1,95 @@
+---
+title: "Project"
+author: "Team BRSM Team BNT"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r}
+library(dplyr)
+library(readr)
+library(stringr)
+```
+
+```{r}
+process_file <- function(file_path) {
+  
+  # reading the log files and finding the blocks
+  df <- read_csv(file_path, show_col_types = FALSE)
+  colnames(df) <- make.names(colnames(df))
+  practice_index <- max(which(df$Event %in% c(
+    "Practice Sentence shown",
+    "Practice IR pressed",
+    "Practice WR pressed",
+    "Practice Missed"
+  )))
+  rest_indices <- which(df$Event == "Rest Phase started")
+  block1_range <- (practice_index + 1):(rest_indices[1] - 1)
+  block2_range <- (rest_indices[1] + 1):(rest_indices[2] - 1)
+  block3_range <- (rest_indices[2] + 1):nrow(df)
+  block1 <- df[block1_range, ]
+  block2 <- df[block2_range, ]
+  block3 <- df[block3_range, ]
+  
+  blocks <- list(block1, block2, block3)
+  
+  valid_blocks <- list()
+  
+  # validating each block using the formula in the given txt file
+  for (block in blocks) {
+    target_trials <- block %>% filter(isTarget == TRUE, Event == "Sentence shown")
+    if (nrow(target_trials) != 32) {
+      next
+    }
+
+    validation_trials <- block %>% filter(isValidation == TRUE)
+    correct_val <- sum((validation_trials$isRepeat == TRUE & validation_trials$Accuracy.IR == "1"), na.rm = TRUE)
+    wrong_val   <- sum((validation_trials$isRepeat == TRUE & validation_trials$Accuracy.IR == "0"), na.rm = TRUE)
+    repeat_trials <- validation_trials %>% filter(Event == "Sentence shown", isRepeat == TRUE)
+    ir_presses <- validation_trials %>% filter(Event == "IR pressed", isRepeat == TRUE)
+    missed_val <- nrow(repeat_trials) - nrow(ir_presses)
+    if (correct_val > (wrong_val / 2) + missed_val) {
+      valid_blocks <- append(valid_blocks, list(block))
+    }
+  }
+  
+  
+  # combining the blocks (stacking rows), removing rows that are for gap time, and keeping only the target sentence trials
+  if (length(valid_blocks) == 0){
+    return(NULL)
+  }
+  valid_data <- bind_rows(valid_blocks)
+  valid_data <- valid_data %>% filter(isTarget == TRUE, Event != "gap_time")
+
+  
+  
+  # Removing missing values and outliers
+  valid_data <- valid_data %>%filter(participant_ID != "N/A",Timestamp != "N/A")
+  valid_data <- valid_data %>%
+  mutate(
+    Reaction_time_IR = na_if(Reaction_time_IR, "N/A"),
+    Reaction_time_WR = na_if(Reaction_time_WR, "N/A"),
+    Reaction_time_IR = as.numeric(Reaction_time_IR),
+    Reaction_time_WR = as.numeric(Reaction_time_WR)
+  )
+  valid_data <- valid_data %>%
+  filter(
+    (is.na(Reaction_time_IR) | (Reaction_time_IR >= 150 & Reaction_time_IR <= 3000)) &
+    (is.na(Reaction_time_WR) | (Reaction_time_WR >= 150 & Reaction_time_WR <= 3000))
+  )
+  valid_data <- valid_data %>%
+  filter(Button=="Yes" | Button=="No" | Button=="None" | Button=="N/A" | Button=="Spacebar")
+  
+  return(valid_data)
+}
+```
+
+```{r}
+log_files <- list.files("Sentence Memorability/NewLogsAnonymized", pattern = "\\.log$", full.names = TRUE)
+
+# applying the block creation and preprocessing on all the log files 
+all_data <- log_files %>%lapply(process_file) %>%bind_rows()
+write_csv(all_data, "sentence_memorability_data.csv")
+```
