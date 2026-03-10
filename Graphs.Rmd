@@ -395,3 +395,9 @@ ir_wr_counts <- raw_dataset %>%
 
 print(ir_wr_counts)
 ```
+
+### Contributions:
+
+Bhavani: Data processing and formulae
+Nishita: Plotting Graphs and Debugging
+Tejasvini: Organizing the graphs PLotting Graphs
