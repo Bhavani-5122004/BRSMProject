@@ -281,19 +281,19 @@ fisch_data <- aggregated_matrix %>%
     WR_Correct = ifelse(WR_Accuracy > 0.5, "Correct", "Incorrect")
   )
 
-ir_word_table <- table(chi_data$Word_Condition, chi_data$IR_Correct)
+ir_word_table <- table(fisch_data$Word_Condition, fisch_data$IR_Correct)
 chisq_ir_word <- fisher.test(ir_word_table)
 print(chisq_ir_word)
 
-wr_word_table <- table(chi_data$Word_Condition, chi_data$WR_Correct)
+wr_word_table <- table(fisch_data$Word_Condition, fisch_data$WR_Correct)
 chisq_wr_word <- fisher.test(wr_word_table)
 print(chisq_wr_word)
 
-ir_voice_table <- table(chi_data$Sentence_Voice, chi_data$IR_Correct)
+ir_voice_table <- table(fisch_data$Sentence_Voice, fisch_data$IR_Correct)
 chisq_ir_voice <- fisher.test(ir_voice_table)
 print(chisq_ir_voice)
 
-wr_voice_table <- table(chi_data$Sentence_Voice, chi_data$WR_Correct)
+wr_voice_table <- table(fisch_data$Sentence_Voice, fisch_data$WR_Correct)
 chisq_wr_voice <- fisher.test(wr_voice_table)
 print(chisq_wr_voice)
 ```
