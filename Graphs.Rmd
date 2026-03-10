@@ -19,7 +19,7 @@ aggregated_matrix <- raw_dataset %>%
   filter(isTarget == TRUE) %>%
   arrange(participant_ID, Stimulus, Timestamp) %>%
   mutate(
-    # map conditions
+    # mapping conditions
     Word_Condition = case_when(
   str_detect(Stimulus, "^HH_")  ~ "HH",
   str_detect(Stimulus, "^HVL_") ~ "HL",
@@ -73,7 +73,7 @@ ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
   geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.8) +
   facet_grid(Sentence_Voice ~ Word_Condition) +
   labs(
-    title = "Distribution of IR Memorability Scores by Condition",
+    title = "IR Memorability Distribution by Word Condition and Voice",
     x = "IR Memorability",
     y = "Count"
   ) +
@@ -124,7 +124,6 @@ ggplot(aggregated_matrix %>% drop_na(Sentence_Voice), aes(x = Sentence_Voice, y 
 ```
 
 ```{r}
-# Summarize data for Interaction Plots
 interaction_data <- aggregated_matrix %>%
   drop_na(Word_Condition, Sentence_Voice) %>%
   group_by(Word_Condition, Sentence_Voice) %>%
@@ -140,7 +139,7 @@ ggplot(interaction_data, aes(x = Word_Condition, y = Mean_IR, color = Sentence_V
   labs(title = "H3a: Interaction of Word Condition and Voice (IR)", x = "Word Condition", y = "Mean IR Memorability", color = "Voice") +
   theme_minimal()
 
-# Graph 8 (H3b): Interaction Plot for WR [cite: 61, 62]
+# Graph 8 (H3b): Interaction Plot for WR 
 ggplot(interaction_data, aes(x = Word_Condition, y = Mean_WR, color = Sentence_Voice, group = Sentence_Voice)) +
   geom_line(linewidth = 1) + geom_point(size = 3) +
   labs(title = "H3b: Interaction of Word Condition and Voice (WR)", x = "Word Condition", y = "Mean WR Accuracy", color = "Voice") +
@@ -154,7 +153,7 @@ aggregated_scaled <- aggregated_matrix %>%
     WR_scaled = as.numeric(scale(WR_Accuracy))
   )
 
-# Summarize effect magnitudes across conditions using standardized standard error/differences
+# Calculate average scaled IR and WR scores and their standard errors for each word condition
 effect_data <- aggregated_scaled %>%
   drop_na(Word_Condition, Sentence_Voice) %>%
   group_by(Word_Condition) %>%
@@ -166,8 +165,7 @@ effect_data <- aggregated_scaled %>%
     .groups="drop"
   )
 
-# Graph 9 (H4): Word Memorability Effects on IR vs WR
-# Note: Modify format for ggplot
+# Graph 9 (H4): Word Memorability effects on IR vs WR
 effect_data_long <- effect_data %>%
   pivot_longer(cols = c(IR_mean, WR_mean), names_to = "Metric", values_to = "Mean") %>%
   mutate(SE = ifelse(Metric == "IR_mean", IR_se, WR_se))
@@ -179,7 +177,7 @@ ggplot(effect_data_long, aes(x = Word_Condition, y = Mean, fill = Metric)) +
   scale_fill_manual(values = c("steelblue", "seagreen"), labels = c("IR Memorability", "WR Accuracy")) +
   theme_minimal()
 
-# Graph 10 (H5): Sentence Voice Effects on IR vs WR
+# Graph 10 (H5): Sentence Voice effects on IR vs WR
 voice_effect <- aggregated_scaled %>%
   drop_na(Sentence_Voice) %>%
   group_by(Sentence_Voice) %>%
@@ -306,6 +304,7 @@ chi_data <- aggregated_matrix %>%
     WR_Correct = ifelse(WR_Accuracy > 0.5, "Correct", "Incorrect")
   )
 
+# Perform Chi-square tests to observe whether correctness (IR and WR) is associated with word condition and sentence voice
 ir_word_table <- table(chi_data$Word_Condition, chi_data$IR_Correct)
 chisq_ir_word <- chisq.test(ir_word_table)
 print(chisq_ir_word)
@@ -331,7 +330,7 @@ library(ggcorrplot)
 library(dplyr)
 library(ggcorrplot)
 
-# Build full numeric correlation data
+#  The complete numeric correlation data
 cor_data <- aggregated_matrix %>%
   select(
     IR_Memorability,
@@ -366,7 +365,7 @@ cor_matrix <- cor(cor_data, method = "spearman", use = "complete.obs")
 # Reorder matrix
 cor_matrix <- cor_matrix[var_order, var_order]
 
-# Reverse rows so axes match visually
+# Reorder correlation matrix and visualize pairwise relationships between variables using a Spearman correlation heatmap
 cor_matrix_plot <- cor_matrix[rev(rownames(cor_matrix)), ]
 
 ggcorrplot(
