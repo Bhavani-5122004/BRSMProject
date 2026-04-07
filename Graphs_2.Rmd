@@ -148,9 +148,19 @@ aggregated_matrix %>%
 # Graph 1: Histogram of IR Memorability Scores
 ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
   geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.8) +
-  facet_grid(Sentence_Voice ~ Word_Condition) +
+  facet_wrap(~ Word_Condition, ncol = 2) +
   labs(
-    title = "IR Memorability Distribution by Word Condition and Voice",
+    title = "IR Memorability Distribution by Word Condition",
+    x = "IR Memorability",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
+  geom_histogram(bins = 20, fill = "dodgerblue", color = "black", alpha = 0.8) +
+  facet_wrap(~ Sentence_Voice, ncol = 2) +
+  labs(
+    title = "IR Memorability Distribution by Sentence Voice",
     x = "IR Memorability",
     y = "Count"
   ) +
@@ -159,13 +169,24 @@ ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
 # Graph 2: Histogram of WR Accuracy Scores
 ggplot(aggregated_matrix, aes(x = WR_Accuracy)) +
   geom_histogram(bins = 20, fill = "seagreen", color = "black", alpha = 0.8) +
-  facet_grid(Sentence_Voice ~ Word_Condition) +
+  facet_wrap(~ Word_Condition, ncol = 2) +
   labs(
-    title = "Distribution of WR Accuracy Scores by Condition",
+    title = "WR Accuracy Distribution by Word Condition",
     x = "WR Accuracy",
     y = "Count"
   ) +
   theme_minimal()
+
+ggplot(aggregated_matrix, aes(x = WR_Accuracy)) +
+  geom_histogram(bins = 20, fill = "mediumseagreen", color = "black", alpha = 0.8) +
+  facet_wrap(~ Sentence_Voice, ncol = 2) +
+  labs(
+    title = "WR Accuracy Distribution by Sentence Voice",
+    x = "WR Accuracy",
+    y = "Count"
+  ) +
+  theme_minimal()
+
 ```
 
 ```{r}
