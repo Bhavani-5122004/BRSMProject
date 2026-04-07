@@ -70,15 +70,78 @@ aggregated_matrix <- raw_dataset %>%
 ```{r}
 # Testing for Normality
 # QQ Plots
-qqnorm(aggregated_matrix$IR_Memorability, main = "Q-Q Plot: IR Memorability")
-qqline(aggregated_matrix$IR_Memorability)
+library(ggplot2)
 
-qqnorm(aggregated_matrix$WR_Accuracy, main = "Q-Q Plot: WR Accuracy")
-qqline(aggregated_matrix$WR_Accuracy)
+ggplot(aggregated_matrix, aes(sample = IR_Memorability)) +
+  stat_qq() + 
+  stat_qq_line(color = "red") +
+  facet_wrap(~ Word_Condition, ncol = 2) + # This creates the 4-plot grid
+  labs(title = "Q-Q Plots: IR Memorability by Word Condition",
+       subtitle = "Checking for Normality across HH, HL, LH, and LL",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
 
-# Shapiro Wilk
-shapiro.test(aggregated_matrix$IR_Memorability)
-shapiro.test(aggregated_matrix$WR_Accuracy)
+ggplot(aggregated_matrix, aes(sample = IR_Memorability)) +
+  stat_qq() + 
+  stat_qq_line(color = "blue") + # Using blue to distinguish from the Word Condition plots
+  facet_wrap(~ Sentence_Voice, ncol = 2) + 
+  labs(title = "Q-Q Plots: IR Memorability by Sentence Voice",
+       subtitle = "Checking for Normality across Active and Passive Voices",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+ggplot(aggregated_matrix, aes(sample = WR_Accuracy)) +
+  stat_qq() + 
+  stat_qq_line(color = "red") +
+  facet_wrap(~ Word_Condition, ncol = 2) + # This creates the 4-plot grid
+  labs(title = "Q-Q Plots: WR_Accuracy by Word Condition",
+       subtitle = "Checking for Normality across HH, HL, LH, and LL",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+ggplot(aggregated_matrix, aes(sample = WR_Accuracy)) +
+  stat_qq() + 
+  stat_qq_line(color = "blue") + # Using blue to distinguish from the Word Condition plots
+  facet_wrap(~ Sentence_Voice, ncol = 2) + 
+  labs(title = "Q-Q Plots: WR_Accuracy by Sentence Voice",
+       subtitle = "Checking for Normality across Active and Passive Voices",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+# Anderson Darling
+library(nortest)
+
+aggregated_matrix %>%
+  group_by(Word_Condition) %>%
+  summarise(
+    AD_Stat = ad.test(IR_Memorability)$statistic,
+    p_value = ad.test(IR_Memorability)$p.value
+  )
+
+aggregated_matrix %>%
+  group_by(Sentence_Voice) %>%
+  summarise(
+    AD_Stat = ad.test(IR_Memorability)$statistic,
+    p_value = ad.test(IR_Memorability)$p.value
+  )
+
+aggregated_matrix %>%
+  group_by(Word_Condition) %>%
+  summarise(
+    AD_Stat = ad.test(WR_Accuracy)$statistic,
+    p_value = ad.test(WR_Accuracy)$p.value
+  )
+
+aggregated_matrix %>%
+  group_by(Sentence_Voice) %>%
+  summarise(
+    AD_Stat = ad.test(WR_Accuracy)$statistic,
+    p_value = ad.test(WR_Accuracy)$p.value
+  )
 ```
 
 ```{r}
