@@ -68,6 +68,20 @@ aggregated_matrix <- raw_dataset %>%
 ```
 
 ```{r}
+# Testing for Normality
+# QQ Plots
+qqnorm(aggregated_matrix$IR_Memorability, main = "Q-Q Plot: IR Memorability")
+qqline(aggregated_matrix$IR_Memorability)
+
+qqnorm(aggregated_matrix$WR_Accuracy, main = "Q-Q Plot: WR Accuracy")
+qqline(aggregated_matrix$WR_Accuracy)
+
+# Shapiro Wilk
+shapiro.test(aggregated_matrix$IR_Memorability)
+shapiro.test(aggregated_matrix$WR_Accuracy)
+```
+
+```{r}
 # Graph 1: Histogram of IR Memorability Scores
 ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
   geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.8) +
