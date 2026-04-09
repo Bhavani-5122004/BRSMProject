@@ -10,7 +10,7 @@ library(stringr)
 
 ```{r}
 raw_dataset <- read_csv(
-  "sentence_memorability_data.csv",
+  "/home/Tj/Desktop/semesters/sem_6/brsm/brsm_project/BRSMProject/sentence_memorability_data.csv",
   na = c("", "NA", "N/A"),
   show_col_types = FALSE
 )
@@ -76,6 +76,7 @@ ggplot(aggregated_matrix, aes(sample = IR_Memorability)) +
   stat_qq() + 
   stat_qq_line(color = "red") +
   facet_wrap(~ Word_Condition, ncol = 2) + # This creates the 4-plot grid
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "Q-Q Plots: IR Memorability by Word Condition",
        subtitle = "Checking for Normality across HH, HL, LH, and LL",
        x = "Theoretical Quantiles",
@@ -86,6 +87,7 @@ ggplot(aggregated_matrix, aes(sample = IR_Memorability)) +
   stat_qq() + 
   stat_qq_line(color = "blue") + # Using blue to distinguish from the Word Condition plots
   facet_wrap(~ Sentence_Voice, ncol = 2) + 
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "Q-Q Plots: IR Memorability by Sentence Voice",
        subtitle = "Checking for Normality across Active and Passive Voices",
        x = "Theoretical Quantiles",
@@ -96,6 +98,7 @@ ggplot(aggregated_matrix, aes(sample = WR_Accuracy)) +
   stat_qq() + 
   stat_qq_line(color = "red") +
   facet_wrap(~ Word_Condition, ncol = 2) + # This creates the 4-plot grid
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "Q-Q Plots: WR_Accuracy by Word Condition",
        subtitle = "Checking for Normality across HH, HL, LH, and LL",
        x = "Theoretical Quantiles",
@@ -106,6 +109,7 @@ ggplot(aggregated_matrix, aes(sample = WR_Accuracy)) +
   stat_qq() + 
   stat_qq_line(color = "blue") + # Using blue to distinguish from the Word Condition plots
   facet_wrap(~ Sentence_Voice, ncol = 2) + 
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "Q-Q Plots: WR_Accuracy by Sentence Voice",
        subtitle = "Checking for Normality across Active and Passive Voices",
        x = "Theoretical Quantiles",
@@ -154,6 +158,7 @@ ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
     x = "IR Memorability",
     y = "Count"
   ) +
+  scale_y_continuous(limits = c(0, NA)) +
   theme_minimal()
 
 ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
@@ -164,6 +169,7 @@ ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
     x = "IR Memorability",
     y = "Count"
   ) +
+  scale_y_continuous(limits = c(0, NA)) +
   theme_minimal()
 
 # Graph 2: Histogram of WR Accuracy Scores
@@ -175,6 +181,7 @@ ggplot(aggregated_matrix, aes(x = WR_Accuracy)) +
     x = "WR Accuracy",
     y = "Count"
   ) +
+  scale_y_continuous(limits = c(0, NA)) +
   theme_minimal()
 
 ggplot(aggregated_matrix, aes(x = WR_Accuracy)) +
@@ -185,6 +192,7 @@ ggplot(aggregated_matrix, aes(x = WR_Accuracy)) +
     x = "WR Accuracy",
     y = "Count"
   ) +
+  scale_y_continuous(limits = c(0, NA)) +
   theme_minimal()
 
 ```
@@ -194,6 +202,7 @@ ggplot(aggregated_matrix, aes(x = WR_Accuracy)) +
 ggplot(aggregated_matrix, aes(x = Word_Condition, y = IR_Memorability, fill = Word_Condition)) +
   geom_violin(trim = FALSE, alpha = 0.5) +
   geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.8) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H1a: IR Memorability by Word Condition", x = "Condition", y = "IR Memorability") +
   theme_minimal() + theme(legend.position = "none")
 
@@ -201,6 +210,7 @@ ggplot(aggregated_matrix, aes(x = Word_Condition, y = IR_Memorability, fill = Wo
 ggplot(aggregated_matrix, aes(x = Word_Condition, y = WR_Accuracy, fill = Word_Condition)) +
   geom_violin(trim = FALSE, alpha = 0.5) +
   geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.8) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H1b: WR Accuracy by Word Condition", x = "Condition", y = "WR Accuracy") +
   theme_minimal() + theme(legend.position = "none")
 ```
@@ -210,6 +220,7 @@ ggplot(aggregated_matrix, aes(x = Word_Condition, y = WR_Accuracy, fill = Word_C
 ggplot(aggregated_matrix %>% drop_na(Sentence_Voice), aes(x = Sentence_Voice, y = IR_Memorability, fill = Sentence_Voice)) +
   geom_violin(trim = FALSE, alpha = 0.5) +
   geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.8) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H2a: IR Memorability by Sentence Voice", x = "Voice", y = "IR Memorability") +
   theme_minimal() + theme(legend.position = "none")
 
@@ -217,6 +228,7 @@ ggplot(aggregated_matrix %>% drop_na(Sentence_Voice), aes(x = Sentence_Voice, y 
 ggplot(aggregated_matrix %>% drop_na(Sentence_Voice), aes(x = Sentence_Voice, y = WR_Accuracy, fill = Sentence_Voice)) +
   geom_violin(trim = FALSE, alpha = 0.5) +
   geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.8) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H2b: WR Accuracy by Sentence Voice", x = "Voice", y = "WR Accuracy") +
   theme_minimal() + theme(legend.position = "none")
 ```
@@ -234,12 +246,14 @@ interaction_data <- aggregated_matrix %>%
 # Graph 7 (H3a): Interaction Plot for IR
 ggplot(interaction_data, aes(x = Word_Condition, y = Mean_IR, color = Sentence_Voice, group = Sentence_Voice)) +
   geom_line(linewidth = 1) + geom_point(size = 3) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H3a: Interaction of Word Condition and Voice (IR)", x = "Word Condition", y = "Mean IR Memorability", color = "Voice") +
   theme_minimal()
 
 # Graph 8 (H3b): Interaction Plot for WR 
 ggplot(interaction_data, aes(x = Word_Condition, y = Mean_WR, color = Sentence_Voice, group = Sentence_Voice)) +
   geom_line(linewidth = 1) + geom_point(size = 3) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H3b: Interaction of Word Condition and Voice (WR)", x = "Word Condition", y = "Mean WR Accuracy", color = "Voice") +
   theme_minimal()
 ```
