@@ -10,7 +10,7 @@ library(stringr)
 
 ```{r}
 raw_dataset <- read_csv(
-  "/home/Tj/Desktop/semesters/sem_6/brsm/brsm_project/BRSMProject/sentence_memorability_data.csv",
+  "sentence_memorability_data.csv",
   na = c("", "NA", "N/A"),
   show_col_types = FALSE
 )
