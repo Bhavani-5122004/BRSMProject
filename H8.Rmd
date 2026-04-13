@@ -10,7 +10,7 @@ library(stringr)
 
 ```{r}
 raw_dataset <- read_csv(
-  "sentence_memorability_data.csv",
+  "sentence_memorability_data_h8.csv",
   na = c("", "NA", "N/A"),
   show_col_types = FALSE
 )
@@ -18,37 +18,13 @@ raw_dataset <- read_csv(
 
 ```{r}
 # 1. Assign Block Numbers using 5-minute gaps
-time_blocked_data <- raw_dataset %>%
-  # 1. Sort the data chronologically per participant
-  arrange(participant_ID, Timestamp) %>%
-  group_by(participant_ID) %>%
+blocked_aggregated <- raw_dataset %>%
+  group_by(participant_ID, Block_Number) %>%
   mutate(
-    # Make sure Timestamp is numeric (sometimes CSVs read them as text)
-    Timestamp_num = as.numeric(Timestamp),
-    
-    # 2. Calculate the gap between the current row and the previous row
-    # (default = first(Timestamp_num) prevents NA on the very first row)
-    time_diff_ms = Timestamp_num - lag(Timestamp_num, default = first(Timestamp_num)),
-    
-    # 3. Check if the gap is greater than 300,000 ms (5 minutes)
-    is_new_block = time_diff_ms > 60000,
-    
-    # 4. cumsum() counts how many times the 5-min gap happened.
-    # Adding 1 ensures the first chunk starts at Block 1 instead of 0.
-    Block_Number = cumsum(is_new_block) + 1,
-    
-    # Your existing formatting logic
     Accuracy.IR = suppressWarnings(as.numeric(Accuracy.IR)),
     Accuracy.WR = suppressWarnings(as.numeric(Accuracy.WR)),
     prev_IR = lag(Accuracy.IR)
   ) %>%
-  ungroup() %>%
-  # Filter to just your target trials AFTER assigning the blocks
-  filter(isTarget == TRUE)
-
-# 2. Aggregate scores per Participant AND Block
-blocked_aggregated <- time_blocked_data %>%
-  group_by(participant_ID, Block_Number) %>%
   summarise(
     # IR components
     Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
@@ -143,13 +119,32 @@ ggplot(blocked_aggregated, aes(x = Block_Number, y = WR_Accuracy, fill = Block_N
        y = "WR Accuracy") +
   theme_minimal() + 
   theme(legend.position = "none")
-
-# Kruskal-Wallis Test for IR Memorability
-kw_ir_block <- kruskal.test(IR_Memorability ~ Block_Number, data = blocked_aggregated)
-print(kw_ir_block)
-
-# Kruskal-Wallis Test for WR Accuracy
-kw_wr_block <- kruskal.test(WR_Accuracy ~ Block_Number, data = blocked_aggregated)
-print(kw_wr_block)
 ```
 
+```{r}
+library(tidyverse)
+
+# 1. Prepare data for the Friedman test
+friedman_data <- blocked_aggregated %>%
+  # Step A: Drop NA values
+  drop_na(IR_Memorability, WR_Accuracy) %>%
+  group_by(participant_ID) %>%
+  # Step B: Keep ONLY participants who have exactly 3 unique blocks
+  filter(n() == 3, n_distinct(Block_Number) == 3) %>%
+  ungroup() %>%
+  # Step C: Convert to factors AFTER filtering so empty levels are completely gone
+  mutate(
+    Block_Number = as.factor(Block_Number),
+    participant_ID = as.factor(participant_ID)
+  )
+
+# 2. Friedman Test for IR Memorability (H8a)
+friedman_ir <- friedman.test(IR_Memorability ~ Block_Number | participant_ID, data = friedman_data)
+print("Friedman Test for IR Memorability:")
+print(friedman_ir)
+
+# 3. Friedman Test for WR Accuracy (H8b)
+friedman_wr <- friedman.test(WR_Accuracy ~ Block_Number | participant_ID, data = friedman_data)
+print("Friedman Test for WR Accuracy:")
+print(friedman_wr)
+```
