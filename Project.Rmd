@@ -30,11 +30,9 @@ process_file <- function(file_path) {
   block1_range <- (practice_index + 1):(rest_indices[1] - 1)
   block2_range <- (rest_indices[1] + 1):(rest_indices[2] - 1)
   block3_range <- (rest_indices[2] + 1):nrow(df)
-
-  block1 <- df[block1_range, ] %>% mutate(Block_Number = 1)
-  block2 <- df[block2_range, ] %>% mutate(Block_Number = 2)
-  block3 <- df[block3_range, ] %>% mutate(Block_Number = 3)
-  
+  block1 <- df[block1_range, ]
+  block2 <- df[block2_range, ]
+  block3 <- df[block3_range, ]
   blocks <- list(block1, block2, block3)
   
   valid_blocks <- list()
@@ -89,9 +87,9 @@ process_file <- function(file_path) {
 ```
 
 ```{r}
-log_files <- list.files("./NewLogsAnonymized", pattern = "\\.log$", full.names = TRUE)
+log_files <- list.files("Sentence Memorability/NewLogsAnonymized", pattern = "\\.log$", full.names = TRUE)
 
 # applying the block creation and preprocessing on all the log files 
 all_data <- log_files %>%lapply(process_file) %>%bind_rows()
-write_csv(all_data, "sentence_memorability_data_h8.csv")
+write_csv(all_data, "sentence_memorability_data.csv")
 ```
