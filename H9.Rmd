@@ -1,0 +1,88 @@
+---
+title: "H9"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+
+raw_dataset <- read_csv(
+  "sentence_memorability_data.csv",
+  na = c("", "NA", "N/A"),
+  show_col_types = FALSE
+)
+
+h9_data <- raw_dataset %>%
+  # Make sure RTs are treated as numbers
+  mutate(
+    Reaction_time_IR = suppressWarnings(as.numeric(Reaction_time_IR)),
+    Reaction_time_WR = suppressWarnings(as.numeric(Reaction_time_WR)),
+    Accuracy.IR = suppressWarnings(as.numeric(Accuracy.IR)),
+    Accuracy.WR = suppressWarnings(as.numeric(Accuracy.WR)),
+    prev_IR = lag(Accuracy.IR)
+  ) %>%
+  group_by(participant_ID) %>%
+  summarise(
+    # Calculate median reaction times (ignores outliers)
+    Median_RT_IR = median(Reaction_time_IR, na.rm = TRUE),
+    Median_RT_WR = median(Reaction_time_WR, na.rm = TRUE),
+
+    # IR components
+    Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
+    Total_Denom = sum(is.na(isRepeat) & Event == "Sentence shown", na.rm = TRUE),
+    Hits = sum(Event == "IR pressed" & isRepeat == TRUE & Accuracy.IR == 1, na.rm = TRUE),
+    False_Alarms = sum(Event == "IR pressed" & is.na(isRepeat), na.rm = TRUE),
+    
+    # IR metrics
+    Hit_Rate = if_else(Total_Repeats > 0, Hits / Total_Repeats, 0),
+    False_Alarm_Rate = if_else(Total_Denom > 0, False_Alarms / Total_Denom, 0),
+    IR_Memorability = Hit_Rate - False_Alarm_Rate,
+    
+    # WR components
+    WR_correct = sum(Event == "WR pressed" & Accuracy.WR == 1 & prev_IR == 1, na.rm = TRUE),
+    WR_total   = sum(Event == "WR pressed" & prev_IR == 1, na.rm = TRUE),
+    
+    # WR metric
+    WR_Accuracy = if_else(WR_total > 0, WR_correct / WR_total, 0),
+    .groups = "drop"
+  ) %>%
+  # Drop any participants missing RTs or scores to ensure a clean correlation
+  drop_na(Median_RT_IR, Median_RT_WR, IR_Memorability, WR_Accuracy)
+```
+
+```{r}
+library(ggplot2)
+
+# Graph H9a: IR Reaction Time vs. IR Memorability
+ggplot(h9_data, aes(x = Median_RT_IR, y = IR_Memorability)) +
+  geom_point(alpha = 0.6, color = "dodgerblue", size = 2) +
+  geom_smooth(method = "lm", color = "red", linetype = "dashed", se = TRUE) +
+  labs(title = "H9a: IR Reaction Time vs. IR Memorability",
+       subtitle = "Testing if faster responses yield lower memorability scores",
+       x = "Median IR Reaction Time (ms)",
+       y = "IR Memorability Score") +
+  theme_minimal()
+
+# Graph H9b: WR Reaction Time vs. WR Accuracy
+ggplot(h9_data, aes(x = Median_RT_WR, y = WR_Accuracy)) +
+  geom_point(alpha = 0.6, color = "seagreen", size = 2) +
+  geom_smooth(method = "lm", color = "red", linetype = "dashed", se = TRUE) +
+  scale_y_continuous(limits = c(0, 1.05)) +
+  labs(title = "H9b: WR Reaction Time vs. WR Accuracy",
+       subtitle = "Testing if faster responses yield lower accuracy scores",
+       x = "Median WR Reaction Time (ms)",
+       y = "WR Accuracy") +
+  theme_minimal()
+```
+
+```{r}
+# Spearman Correlation for H9a (IR)
+cor_ir <- cor.test(h9_data$Median_RT_IR, h9_data$IR_Memorability, method = "spearman", exact = FALSE)
+print("Spearman Correlation for H9a (IR):")
+print(cor_ir)
+
+# Spearman Correlation for H9b (WR)
+cor_wr <- cor.test(h9_data$Median_RT_WR, h9_data$WR_Accuracy, method = "spearman", exact = FALSE)
+print("Spearman Correlation for H9b (WR):")
+print(cor_wr)
+```
