@@ -26,6 +26,9 @@ h9_data <- raw_dataset %>%
     # Calculate median reaction times (ignores outliers)
     Median_RT_IR = median(Reaction_time_IR, na.rm = TRUE),
     Median_RT_WR = median(Reaction_time_WR, na.rm = TRUE),
+    
+    Mean_RT_IR = mean(Reaction_time_IR, na.rm = TRUE),
+    Mean_RT_WR = mean(Reaction_time_WR, na.rm = TRUE),
 
     # IR components
     Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
@@ -76,13 +79,89 @@ ggplot(h9_data, aes(x = Median_RT_WR, y = WR_Accuracy)) +
 ```
 
 ```{r}
-# Spearman Correlation for H9a (IR)
-cor_ir <- cor.test(h9_data$Median_RT_IR, h9_data$IR_Memorability, method = "spearman", exact = FALSE)
-print("Spearman Correlation for H9a (IR):")
-print(cor_ir)
+library(ggplot2)
 
-# Spearman Correlation for H9b (WR)
-cor_wr <- cor.test(h9_data$Median_RT_WR, h9_data$WR_Accuracy, method = "spearman", exact = FALSE)
-print("Spearman Correlation for H9b (WR):")
-print(cor_wr)
+# Q-Q Plot for Overall IR Memorability
+ggplot(h9_data, aes(sample = IR_Memorability)) +
+  stat_qq() + 
+  stat_qq_line(color = "red") +
+  labs(title = "Q-Q Plot: Overall IR Memorability",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+# Q-Q Plot for Overall WR Accuracy
+ggplot(h9_data, aes(sample = WR_Accuracy)) +
+  stat_qq() + 
+  stat_qq_line(color = "blue") +
+  labs(title = "Q-Q Plot: Overall WR Accuracy",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+# Q-Q Plot for Overall Median RT (IR)
+ggplot(h9_data, aes(sample = Median_RT_IR)) +
+  stat_qq() + 
+  stat_qq_line(color = "darkgreen") +
+  labs(title = "Q-Q Plot: Overall Median RT (IR)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+# Q-Q Plot for Overall Median RT (WR)
+ggplot(h9_data, aes(sample = Median_RT_WR)) +
+  stat_qq() + 
+  stat_qq_line(color = "purple") +
+  labs(title = "Q-Q Plot: Overall Median RT (WR)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+library(nortest)
+library(dplyr)
+
+# Anderson-Darling tests for the specific dataset
+overall_normality <- h9_data %>%
+  summarise(
+    # IR Memorability
+    AD_IR_Mem = ad.test(IR_Memorability)$statistic,
+    p_val_IR_Mem = ad.test(IR_Memorability)$p.value,
+    
+    # WR Accuracy
+    AD_WR_Acc = ad.test(WR_Accuracy)$statistic,
+    p_val_WR_Acc = ad.test(WR_Accuracy)$p.value,
+    
+    # Median Reaction Time (IR)
+    AD_RT_IR = ad.test(Median_RT_IR)$statistic,
+    p_val_RT_IR = ad.test(Median_RT_IR)$p.value,
+    
+    # Median Reaction Time (WR)
+    AD_RT_WR = ad.test(Median_RT_WR)$statistic,
+    p_val_RT_WR = ad.test(Median_RT_WR)$p.value
+  )
+
+# View the results
+overall_normality
+```
+
+```{r}
+# Using Median RT
+cor_ir_median <- cor.test(h9_data$Median_RT_IR, h9_data$IR_Memorability, method = "spearman", exact = FALSE)
+print("Spearman Correlation for H9a (IR - Median RT):")
+print(cor_ir_median)
+
+# Using Mean RT
+cor_ir_mean <- cor.test(h9_data$Mean_RT_IR, h9_data$IR_Memorability, method = "spearman", exact = FALSE)
+print("Spearman Correlation for H9a (IR - Mean RT):")
+print(cor_ir_mean)
+
+# Using Median RT
+cor_wr_median <- cor.test(h9_data$Median_RT_WR, h9_data$WR_Accuracy, method = "spearman", exact = FALSE)
+print("Spearman Correlation for H9b (WR - Median RT):")
+print(cor_wr_median)
+
+# Using Mean RT
+cor_wr_mean <- cor.test(h9_data$Mean_RT_WR, h9_data$WR_Accuracy, method = "spearman", exact = FALSE)
+print("Spearman Correlation for H9b (WR - Mean RT):")
+print(cor_wr_mean)
 ```
