@@ -46,8 +46,6 @@ blocked_aggregated <- raw_dataset %>%
     .groups = "drop"
   ) %>%
   # Ensure the Block_Number is a categorical factor for plotting/testing
-  # (If some participants had more than 3 blocks due to pausing, you can filter them here)
-  filter(Block_Number %in% c(1, 2, 3)) %>%
   mutate(Block_Number = factor(Block_Number, levels = c(1, 2, 3), labels = c("Block 1", "Block 2", "Block 3")))
 ```
 
