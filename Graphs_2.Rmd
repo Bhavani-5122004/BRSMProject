@@ -149,6 +149,56 @@ aggregated_matrix %>%
 ```
 
 ```{r}
+library(dplyr)
+
+desc_stats_word_condition <- aggregated_matrix %>%
+  group_by(Word_Condition) %>%
+  summarise(
+    N = n(),
+    
+    # IR Memorability Stats
+    IR_Mean   = mean(IR_Memorability, na.rm = TRUE),
+    IR_SD     = sd(IR_Memorability, na.rm = TRUE),
+    IR_Median = median(IR_Memorability, na.rm = TRUE),
+    IR_Min    = min(IR_Memorability, na.rm = TRUE),
+    IR_Max    = max(IR_Memorability, na.rm = TRUE),
+    
+    # WR Accuracy Stats
+    WR_Mean   = mean(WR_Accuracy, na.rm = TRUE),
+    WR_SD     = sd(WR_Accuracy, na.rm = TRUE),
+    WR_Median = median(WR_Accuracy, na.rm = TRUE),
+    WR_Min    = min(WR_Accuracy, na.rm = TRUE),
+    WR_Max    = max(WR_Accuracy, na.rm = TRUE)
+  )
+
+print("Descriptive Statistics by Word Condition:")
+print(desc_stats_word_condition)
+
+desc_stats_voice <- aggregated_matrix %>%
+  group_by(Sentence_Voice) %>%
+  summarise(
+    N = n(),
+    
+    # IR Memorability Stats
+    IR_Mean   = mean(IR_Memorability, na.rm = TRUE),
+    IR_SD     = sd(IR_Memorability, na.rm = TRUE),
+    IR_Median = median(IR_Memorability, na.rm = TRUE),
+    IR_Min    = min(IR_Memorability, na.rm = TRUE),
+    IR_Max    = max(IR_Memorability, na.rm = TRUE),
+    
+    # WR Accuracy Stats
+    WR_Mean   = mean(WR_Accuracy, na.rm = TRUE),
+    WR_SD     = sd(WR_Accuracy, na.rm = TRUE),
+    WR_Median = median(WR_Accuracy, na.rm = TRUE),
+    WR_Min    = min(WR_Accuracy, na.rm = TRUE),
+    WR_Max    = max(WR_Accuracy, na.rm = TRUE)
+  )
+
+print("Descriptive Statistics by Sentence Voice:")
+print(desc_stats_voice)
+```
+
+```{r}
 # Graph 1: Histogram of IR Memorability Scores
 ggplot(aggregated_matrix, aes(x = IR_Memorability)) +
   geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.8) +
