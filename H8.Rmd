@@ -87,6 +87,7 @@ ir_normality_blocks <- blocked_aggregated %>%
     AD_Stat = ad.test(IR_Memorability)$statistic,
     p_value = ad.test(IR_Memorability)$p.value
   )
+ir_normality_blocks
 
 wr_normality_blocks <- blocked_aggregated %>%
   group_by(Block_Number) %>%
@@ -94,7 +95,7 @@ wr_normality_blocks <- blocked_aggregated %>%
     AD_Stat = ad.test(WR_Accuracy)$statistic,
     p_value = ad.test(WR_Accuracy)$p.value
   )
-
+wr_normality_blocks
 ```
 
 ```{r}
