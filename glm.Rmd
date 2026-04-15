@@ -1,0 +1,346 @@
+---
+title: "GLM"
+author: "Bhavani Chalasani - 2022101014"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+    
+```{r}
+library(tidyverse)
+library(stringr)
+library(lubridate)
+library(car)
+library(nortest)
+library(effects)
+library(e1071)
+library(marginaleffects)
+
+get_time_of_day <- function(ts) {
+  time_ist <- as_datetime(ts / 1000, tz = "Asia/Kolkata")
+  hour <- hour(time_ist)
+  case_when(
+    hour >= 6  & hour < 16 ~ "Day time",
+    # hour >= 12 & hour < 17 ~ "Afternoon",
+    hour >= 16 & hour < 20 ~ "Evening",
+    TRUE ~ "Night"  
+  )
+}
+
+raw_dataset <- read_csv(
+  "sentence_memorability_data.csv",
+  na = c("", "NA", "N/A"),
+  show_col_types = FALSE
+)
+
+data <- raw_dataset %>%
+  arrange(participant_ID, Timestamp) %>%
+  mutate(
+    Accuracy.IR = suppressWarnings(as.numeric(Accuracy.IR)),
+    Accuracy.WR = suppressWarnings(as.numeric(Accuracy.WR)),
+    prev_IR = lag(Accuracy.IR)
+  ) %>%
+  group_by(participant_ID) %>%
+  summarise(
+
+    Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
+    Total_Denom = sum(is.na(isRepeat) & Event == "Sentence shown", na.rm = TRUE),
+    Hits = sum(Event == "IR pressed" & isRepeat == TRUE & Accuracy.IR == 1, na.rm = TRUE),
+    False_Alarms = sum(Event == "IR pressed" & is.na(isRepeat), na.rm = TRUE),
+
+    Hit_Rate = if_else(Total_Repeats > 0, Hits / Total_Repeats, 0),
+    False_Alarm_Rate = if_else(Total_Denom > 0, False_Alarms / Total_Denom, 0),
+    IR_Memorability = Hit_Rate - False_Alarm_Rate,
+
+    WR_correct = sum(Event == "WR pressed" & Accuracy.WR == 1 & prev_IR == 1, na.rm = TRUE),
+    WR_total   = sum(Event == "WR pressed" & prev_IR == 1, na.rm = TRUE),
+    WR_Accuracy = if_else(WR_total > 0, WR_correct / WR_total, 0),
+    
+    IR_Presses = sum(Event == "IR pressed", na.rm = TRUE),
+    WR_Presses = sum(Event == "WR pressed", na.rm = TRUE),
+    avg_RT_IR = mean(Reaction_time_IR, na.rm = TRUE),
+    avg_RT_WR = mean(Reaction_time_WR, na.rm = TRUE),
+    avg_timestamp = mean(Timestamp, na.rm = TRUE),
+
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Time_of_Day = get_time_of_day(avg_timestamp)
+  )
+
+data <- data %>%
+  mutate(
+    Time_of_Day = factor(Time_of_Day,
+                         levels = c("Day time", "Evening", "Night"))
+  )
+
+```
+
+```{r}
+# Testing assumptions - IR memorability
+
+model <- lm(IR_Memorability ~ avg_RT_IR + IR_Presses + Time_of_Day, data = data)
+
+# Linearity and homoskedasticity
+
+plot(model$fitted.values, resid(model))
+abline(h = 0, lty = 2)
+ncvTest(model)
+
+# Normality
+
+qqnorm(resid(model))
+qqline(resid(model))
+residuals_model <- residuals(model)
+ad.test(residuals_model)
+
+# Outliers
+
+plot(cooks.distance(model))
+abline(h = 4/nrow(data), lty = 2)
+```
+
+```{r}
+# Transforming the data because the GLM assumptions were violated
+plot(allEffects(model), ylim = c(0, 1))
+plot(allEffects(model))
+
+hist(data$IR_Memorability,
+     breaks = 20,
+     main = "Distribution of IR Memorability",
+     xlab = "IR Memorability")
+
+# Fixing linearity
+data <- data %>%
+  mutate(
+    log_RT_IR = log(avg_RT_IR)
+  )
+
+# Fixing homoskedasticity and normality - checking skewness to see which transform to apply
+cat("Checking skew:\n")
+skewness(residuals_model)
+K <- max(data$IR_Memorability, na.rm = TRUE) + 1
+data <- data %>%
+  mutate(
+    IR_transformed = log10(K - IR_Memorability)
+  )
+
+model <- lm(IR_transformed ~ log_RT_IR + IR_Presses + Time_of_Day, data = data)
+
+plot(model$fitted.values, resid(model))
+abline(h = 0, lty = 2)
+ncvTest(model)
+
+# Normality
+
+qqnorm(resid(model))
+qqline(resid(model))
+residuals_model <- residuals(model)
+ad.test(residuals_model)
+
+# Outliers
+
+plot(cooks.distance(model))
+abline(h = 4/nrow(data), lty = 2)
+# Doing the above with the checks again showed that we cannot transform the data to become normal
+```
+
+```{r}
+library(betareg)
+
+# checking assumptions for beta regression - values should be bw 0 and 1 and acceptable shape - here it is reverse J
+any(data$IR_Memorability <= 0 | data$IR_Memorability >= 1, na.rm = TRUE)
+hist(data$IR_Memorability, breaks = 20)
+
+
+model <- betareg(IR_Memorability ~ avg_RT_IR + IR_Presses + Time_of_Day, data = data)
+
+# removing highly correlated predictors using VIF
+
+removed_vars <- c()
+repeat {
+  vif_values <- vif(model)
+  threshold = 5
+
+  if (is.matrix(vif_values)) {
+    vif_values <- vif_values[, "GVIF^(1/(2*Df))"]
+  }
+
+  max_vif <- max(vif_values)
+
+  if (max_vif <= threshold) break
+
+  variable_to_remove <- names(which.max(vif_values))
+  removed_vars <- c(removed_vars, variable_to_remove)
+  formula_current <- formula(model)
+  predictors <- attr(terms(formula_current), "term.labels")
+  predictors <- predictors[predictors != variable_to_remove]
+  response <- all.vars(formula_current)[1]
+  new_formula <- as.formula(
+    paste(response, "~", paste(predictors, collapse = " + "))
+  )
+
+  model <- betareg(new_formula, data = data)
+}
+
+cat("Variables removed due to high VIF for model2:\n")
+print(removed_vars)
+
+
+# interpreting the model
+cat("\nInterpretation\n")
+summary(model)
+confint(model)
+avg_slopes(model)
+# Plotting the model
+# The plot below shows how appropriate the model is for our data, and it's quite appropriate
+# plot(model)
+
+
+plot(allEffects(model), ylim = c(0, 1))
+plot(allEffects(model))
+cat("AIC value of the model\n")
+AIC(model)
+```
+
+```{r}
+# Testing assumptions - WR Accuracy
+
+model2 <- lm(WR_Accuracy ~ avg_RT_WR + WR_Presses + Time_of_Day, data = data)
+
+# Linearity and homoskedasticity
+
+plot(model2$fitted.values, resid(model2))
+abline(h = 0, lty = 2)
+ncvTest(model2)
+
+# Normality
+hist(data$WR_Accuracy, breaks = 20)
+qqnorm(resid(model2))
+qqline(resid(model2))
+residuals_model <- residuals(model2)
+ad.test(residuals_model)
+
+# Outliers
+
+plot(cooks.distance(model2))
+abline(h = 4/nrow(data), lty = 2)
+
+plot(allEffects(model2), ylim = c(0, 1))
+plot(allEffects(model2))
+```
+
+```{r}
+# Since glm assumptions are satisfied, we can apply a glm
+
+model2 <- glm(
+  WR_Accuracy ~ avg_RT_WR + WR_Presses + Time_of_Day,
+  family = gaussian(link = "identity"),
+  data = data
+)
+
+# removing highly correlated predictors using VIF
+
+removed_vars <- c()
+repeat {
+  vif_values <- vif(model2)
+  threshold = 5
+
+  if (is.matrix(vif_values)) {
+    vif_values <- vif_values[, "GVIF^(1/(2*Df))"]
+  }
+
+  max_vif <- max(vif_values)
+
+  if (max_vif <= threshold) break
+
+  variable_to_remove <- names(which.max(vif_values))
+  removed_vars <- c(removed_vars, variable_to_remove)
+  formula_current <- formula(model2)
+  predictors <- attr(terms(formula_current), "term.labels")
+  predictors <- predictors[predictors != variable_to_remove]
+  response <- all.vars(formula_current)[1]
+  new_formula <- as.formula(
+    paste(response, "~", paste(predictors, collapse = " + "))
+  )
+
+  model2 <- glm(new_formula, family = gaussian(link = "identity"), data = data)
+}
+
+cat("Variables removed due to high VIF for model2:\n")
+print(removed_vars)
+
+# Interpreting the model
+cat("Interpretation\n")
+summary(model2)
+confint(model2)
+cat("AIC value of the model\n")
+AIC(model2)
+
+cat("Checking if predictions go out of range:\n")
+range(predict(model2))
+```
+
+```{r}
+# Transform WR_Accuracy to (0,1) for beta regression
+n <- nrow(data)
+
+data <- data %>%
+  mutate(
+    WR_Accuracy_adj = (WR_Accuracy * (n - 1) + 0.5) / n
+  )
+
+model2 <- betareg(WR_Accuracy_adj ~ avg_RT_WR + WR_Presses + Time_of_Day, data = data)
+
+# removing highly correlated predictors using VIF
+
+removed_vars <- c()
+repeat {
+  vif_values <- vif(model2)
+  threshold = 5
+
+  if (is.matrix(vif_values)) {
+    vif_values <- vif_values[, "GVIF^(1/(2*Df))"]
+  }
+
+  max_vif <- max(vif_values)
+
+  if (max_vif <= threshold) break
+
+  variable_to_remove <- names(which.max(vif_values))
+  removed_vars <- c(removed_vars, variable_to_remove)
+  formula_current <- formula(model2)
+  predictors <- attr(terms(formula_current), "term.labels")
+  predictors <- predictors[predictors != variable_to_remove]
+  response <- all.vars(formula_current)[1]
+  new_formula <- as.formula(
+    paste(response, "~", paste(predictors, collapse = " + "))
+  )
+
+  model2 <- betareg(new_formula, data = data)
+}
+
+cat("Variables removed due to high VIF for model2:\n")
+print(removed_vars)
+
+
+# interpreting the model
+cat("\nInterpretation\n")
+summary(model2)
+confint(model2)
+avg_slopes(model2)
+# Plotting the model
+# The plot below shows how appropriate the model is for our data, and it's quite appropriate
+# plot(model)
+
+
+plot(allEffects(model2), ylim = c(0, 1))
+plot(allEffects(model2))
+cat("AIC value of the model\n")
+AIC(model2)
+```
+
+
+
+
