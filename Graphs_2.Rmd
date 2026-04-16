@@ -43,7 +43,7 @@ aggregated_matrix <- raw_dataset %>%
   ) %>%
   group_by(Stimulus, Word_Condition, Sentence_Voice) %>%
   summarise(
-
+    Participants = n_distinct(participant_ID),
     # IR components
     Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
     Total_Denom = sum(is.na(isRepeat) & Event == "Sentence shown"),
@@ -65,6 +65,10 @@ aggregated_matrix <- raw_dataset %>%
     .groups = "drop"
   ) %>%
   mutate(WR_Accuracy = replace_na(WR_Accuracy, 0))
+
+aggregated_matrix <- aggregated_matrix %>%
+  filter(Participants >= 15)
+
 ```
 
 ```{r}
@@ -146,56 +150,6 @@ aggregated_matrix %>%
     AD_Stat = ad.test(WR_Accuracy)$statistic,
     p_value = ad.test(WR_Accuracy)$p.value
   )
-```
-
-```{r}
-library(dplyr)
-
-desc_stats_word_condition <- aggregated_matrix %>%
-  group_by(Word_Condition) %>%
-  summarise(
-    N = n(),
-    
-    # IR Memorability Stats
-    IR_Mean   = mean(IR_Memorability, na.rm = TRUE),
-    IR_SD     = sd(IR_Memorability, na.rm = TRUE),
-    IR_Median = median(IR_Memorability, na.rm = TRUE),
-    IR_Min    = min(IR_Memorability, na.rm = TRUE),
-    IR_Max    = max(IR_Memorability, na.rm = TRUE),
-    
-    # WR Accuracy Stats
-    WR_Mean   = mean(WR_Accuracy, na.rm = TRUE),
-    WR_SD     = sd(WR_Accuracy, na.rm = TRUE),
-    WR_Median = median(WR_Accuracy, na.rm = TRUE),
-    WR_Min    = min(WR_Accuracy, na.rm = TRUE),
-    WR_Max    = max(WR_Accuracy, na.rm = TRUE)
-  )
-
-print("Descriptive Statistics by Word Condition:")
-print(desc_stats_word_condition)
-
-desc_stats_voice <- aggregated_matrix %>%
-  group_by(Sentence_Voice) %>%
-  summarise(
-    N = n(),
-    
-    # IR Memorability Stats
-    IR_Mean   = mean(IR_Memorability, na.rm = TRUE),
-    IR_SD     = sd(IR_Memorability, na.rm = TRUE),
-    IR_Median = median(IR_Memorability, na.rm = TRUE),
-    IR_Min    = min(IR_Memorability, na.rm = TRUE),
-    IR_Max    = max(IR_Memorability, na.rm = TRUE),
-    
-    # WR Accuracy Stats
-    WR_Mean   = mean(WR_Accuracy, na.rm = TRUE),
-    WR_SD     = sd(WR_Accuracy, na.rm = TRUE),
-    WR_Median = median(WR_Accuracy, na.rm = TRUE),
-    WR_Min    = min(WR_Accuracy, na.rm = TRUE),
-    WR_Max    = max(WR_Accuracy, na.rm = TRUE)
-  )
-
-print("Descriptive Statistics by Sentence Voice:")
-print(desc_stats_voice)
 ```
 
 ```{r}
@@ -296,14 +250,12 @@ interaction_data <- aggregated_matrix %>%
 # Graph 7 (H3a): Interaction Plot for IR
 ggplot(interaction_data, aes(x = Word_Condition, y = Mean_IR, color = Sentence_Voice, group = Sentence_Voice)) +
   geom_line(linewidth = 1) + geom_point(size = 3) +
-  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H3a: Interaction of Word Condition and Voice (IR)", x = "Word Condition", y = "Mean IR Memorability", color = "Voice") +
   theme_minimal()
 
 # Graph 8 (H3b): Interaction Plot for WR 
 ggplot(interaction_data, aes(x = Word_Condition, y = Mean_WR, color = Sentence_Voice, group = Sentence_Voice)) +
   geom_line(linewidth = 1) + geom_point(size = 3) +
-  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H3b: Interaction of Word Condition and Voice (WR)", x = "Word Condition", y = "Mean WR Accuracy", color = "Voice") +
   theme_minimal()
 ```
@@ -414,23 +366,23 @@ print(kruskal_wr_word)
 ```
 
 ```{r}
-mw_ir_voice <- wilcox.test(
+t_ir_voice <- t.test(
   IR_Memorability ~ Sentence_Voice,
   data = aggregated_matrix,
-  exact = FALSE
+  var.equal = FALSE  
 )
 
-print(mw_ir_voice)
+print(t_ir_voice)
 ```
 
 ```{r}
-mw_wr_voice <- wilcox.test(
+t_ir_voice <- t.test(
   WR_Accuracy ~ Sentence_Voice,
   data = aggregated_matrix,
-  exact = FALSE
+  var.equal = FALSE  
 )
 
-print(mw_wr_voice)
+print(t_ir_voice)
 ```
 
 ```{r}
@@ -544,3 +496,9 @@ ir_wr_counts <- raw_dataset %>%
 
 print(ir_wr_counts)
 ```
+
+### Contributions:
+
+Bhavani: Data processing and formulae
+Nishita: Plotting Graphs and Debugging
+Tejasvini: Organizing the graphs and plotting graphs

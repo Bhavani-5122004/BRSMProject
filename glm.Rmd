@@ -16,6 +16,7 @@ library(nortest)
 library(effects)
 library(e1071)
 library(marginaleffects)
+library(betareg)
 
 get_time_of_day <- function(ts) {
   time_ist <- as_datetime(ts / 1000, tz = "Asia/Kolkata")
@@ -43,7 +44,6 @@ data <- raw_dataset %>%
   ) %>%
   group_by(participant_ID) %>%
   summarise(
-
     Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
     Total_Denom = sum(is.na(isRepeat) & Event == "Sentence shown", na.rm = TRUE),
     Hits = sum(Event == "IR pressed" & isRepeat == TRUE & Accuracy.IR == 1, na.rm = TRUE),
@@ -147,7 +147,7 @@ abline(h = 4/nrow(data), lty = 2)
 ```
 
 ```{r}
-library(betareg)
+
 
 # checking assumptions for beta regression - values should be bw 0 and 1 and acceptable shape - here it is reverse J
 any(data$IR_Memorability <= 0 | data$IR_Memorability >= 1, na.rm = TRUE)
@@ -227,63 +227,11 @@ ad.test(residuals_model)
 plot(cooks.distance(model2))
 abline(h = 4/nrow(data), lty = 2)
 
-plot(allEffects(model2), ylim = c(0, 1))
 plot(allEffects(model2))
 ```
 
 ```{r}
-# Since glm assumptions are satisfied, we can apply a glm
-
-model2 <- glm(
-  WR_Accuracy ~ avg_RT_WR + WR_Presses + Time_of_Day,
-  family = gaussian(link = "identity"),
-  data = data
-)
-
-# removing highly correlated predictors using VIF
-
-removed_vars <- c()
-repeat {
-  vif_values <- vif(model2)
-  threshold = 5
-
-  if (is.matrix(vif_values)) {
-    vif_values <- vif_values[, "GVIF^(1/(2*Df))"]
-  }
-
-  max_vif <- max(vif_values)
-
-  if (max_vif <= threshold) break
-
-  variable_to_remove <- names(which.max(vif_values))
-  removed_vars <- c(removed_vars, variable_to_remove)
-  formula_current <- formula(model2)
-  predictors <- attr(terms(formula_current), "term.labels")
-  predictors <- predictors[predictors != variable_to_remove]
-  response <- all.vars(formula_current)[1]
-  new_formula <- as.formula(
-    paste(response, "~", paste(predictors, collapse = " + "))
-  )
-
-  model2 <- glm(new_formula, family = gaussian(link = "identity"), data = data)
-}
-
-cat("Variables removed due to high VIF for model2:\n")
-print(removed_vars)
-
-# Interpreting the model
-cat("Interpretation\n")
-summary(model2)
-confint(model2)
-cat("AIC value of the model\n")
-AIC(model2)
-
-cat("Checking if predictions go out of range:\n")
-range(predict(model2))
-```
-
-```{r}
-# Transform WR_Accuracy to (0,1) for beta regression
+# Transform WR_Accuracy to (0,1) for beta regression because even though glm assumptions are satisfied, the outcome is bounded so we cannot use a glm
 n <- nrow(data)
 
 data <- data %>%
@@ -335,11 +283,133 @@ avg_slopes(model2)
 # plot(model)
 
 
-plot(allEffects(model2), ylim = c(0, 1))
 plot(allEffects(model2))
 cat("AIC value of the model\n")
 AIC(model2)
 ```
+
+
+```{r}
+# Beta regression on sentence level - for each sentence, taking word condtion, sentence voice and interaction effect as predictors
+
+data2 <- raw_dataset %>%
+  filter(isTarget == TRUE) %>%
+  arrange(participant_ID, Stimulus, Timestamp) %>%
+  mutate(
+    # mapping conditions
+    Word_Condition = case_when(
+  str_detect(Stimulus, "^HH_")  ~ "HH",
+  str_detect(Stimulus, "^HVL_") ~ "HL",
+  str_detect(Stimulus, "^LVH_") ~ "LH",
+  str_detect(Stimulus, "^LVL_") ~ "LL"
+),
+    Word_Condition = factor(Word_Condition, levels = c("HH","HL","LH","LL")),
+
+    Sentence_Voice = case_when(
+      str_detect(Stimulus, "_A$") ~ "Active",
+      str_detect(Stimulus, "_P$") ~ "Passive",
+      TRUE ~ NA_character_
+    ),
+    Sentence_Voice = factor(Sentence_Voice, levels = c("Active", "Passive")),
+
+    Accuracy.IR = suppressWarnings(as.numeric(Accuracy.IR)),
+    Accuracy.WR = suppressWarnings(as.numeric(Accuracy.WR)),
+
+    # store previous IR result
+    prev_IR = lag(Accuracy.IR)
+  ) %>%
+  group_by(Stimulus, Word_Condition, Sentence_Voice) %>%
+  summarise(
+    Participants = n_distinct(participant_ID),
+    # IR components
+    Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
+    Total_Denom = sum(is.na(isRepeat) & Event == "Sentence shown"),
+    Hits = sum(Event == "IR pressed" & isRepeat == TRUE & Accuracy.IR == 1, na.rm = TRUE),
+    False_Alarms = sum(Event == "IR pressed" & is.na(isRepeat), na.rm = TRUE),
+
+    # IR metrics
+    Hit_Rate = if_else(Total_Repeats > 0, Hits / Total_Repeats, 0),
+    False_Alarm_Rate = if_else(Total_Denom > 0, False_Alarms / Total_Denom, 0),
+    IR_Memorability = Hit_Rate - False_Alarm_Rate,
+
+    # WR components (after correct IR)
+    WR_correct = sum(Event == "WR pressed" & Accuracy.WR == 1 & prev_IR == 1, na.rm = TRUE),
+    WR_total   = sum(Event == "WR pressed" & prev_IR == 1, na.rm = TRUE),
+
+    # WR metric
+    WR_Accuracy = if_else(WR_total > 0, WR_correct / WR_total, 0),
+
+    .groups = "drop"
+  ) %>%
+  mutate(WR_Accuracy = replace_na(WR_Accuracy, 0))
+
+data2 <- data2 %>%
+  filter(Participants >= 15)
+```
+
+```{r}
+# beta regression for IR memorability
+
+n <- nrow(data2)
+
+data2 <- data2 %>%
+  mutate(
+    IR_Memorability_adj = (IR_Memorability * (n - 1) + 0.5) / n
+  )
+
+model3 <- betareg(IR_Memorability_adj ~ Word_Condition*Sentence_Voice, data = data2)
+
+
+# interpreting the model
+cat("\nInterpretation\n")
+summary(model3)
+confint(model3)
+avg_slopes(model3)
+# Plotting the model
+# The plot below shows how appropriate the model is for our data, and it's quite appropriate
+# plot(model)
+
+
+plot(allEffects(model3))
+cat("AIC value of the model\n")
+AIC(model3)
+
+cat("Plotting Predictions\n")
+plot_predictions(model3, condition = c("Word_Condition", "Sentence_Voice"))
+```
+
+```{r}
+# beta regression for WR_Accuracy
+
+n <- nrow(data2)
+
+data2 <- data2 %>%
+  mutate(
+    WR_Accuracy_adj = (WR_Accuracy * (n - 1) + 0.5) / n
+  )
+
+model4 <- betareg(WR_Accuracy_adj ~ Word_Condition*Sentence_Voice, data = data2)
+
+
+# interpreting the model
+cat("\nInterpretation\n")
+summary(model4)
+confint(model4)
+avg_slopes(model4)
+# Plotting the model
+# The plot below shows how appropriate the model is for our data, and it's quite appropriate
+# plot(model)
+
+
+plot(allEffects(model4))
+cat("AIC value of the model\n")
+AIC(model4)
+
+cat("Plotting Predictions\n")
+plot_predictions(model4, condition = c("Word_Condition", "Sentence_Voice"))
+```
+
+
 
 
 
