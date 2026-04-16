@@ -366,23 +366,23 @@ print(kruskal_wr_word)
 ```
 
 ```{r}
-t_ir_voice <- t.test(
+mw_ir_voice <- wilcox.test(
   IR_Memorability ~ Sentence_Voice,
   data = aggregated_matrix,
-  var.equal = FALSE  
+  exact = FALSE
 )
 
-print(t_ir_voice)
+print(mw_ir_voice)
 ```
 
 ```{r}
-t_ir_voice <- t.test(
+mw_wr_voice <- wilcox.test(
   WR_Accuracy ~ Sentence_Voice,
   data = aggregated_matrix,
-  var.equal = FALSE  
+  exact = FALSE
 )
 
-print(t_ir_voice)
+print(mw_wr_voice)
 ```
 
 ```{r}
