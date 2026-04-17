@@ -79,8 +79,6 @@ ggplot(h9_data, aes(x = Median_RT_WR, y = WR_Accuracy)) +
 ```
 
 ```{r}
-library(ggplot2)
-
 # Q-Q Plot for Overall IR Memorability
 ggplot(h9_data, aes(sample = IR_Memorability)) +
   stat_qq() + 
@@ -141,7 +139,7 @@ overall_normality <- h9_data %>%
   )
 
 # View the results
-overall_normality
+print(as.data.frame(overall_normality))
 ```
 
 ```{r}

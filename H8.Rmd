@@ -17,7 +17,6 @@ raw_dataset <- read_csv(
 ```
 
 ```{r}
-# 1. Assign Block Numbers using 5-minute gaps
 blocked_aggregated <- raw_dataset %>%
   group_by(participant_ID, Block_Number) %>%
   mutate(
@@ -57,7 +56,6 @@ ggplot(blocked_aggregated, aes(sample = IR_Memorability)) +
   stat_qq() + 
   stat_qq_line(color = "red") +
   facet_wrap(~ Block_Number, ncol = 3) +
-  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "Q-Q Plots: IR Memorability Across Blocks",
        subtitle = "Checking for Normality in Blocks 1, 2, and 3",
        x = "Theoretical Quantiles",
@@ -69,7 +67,6 @@ ggplot(blocked_aggregated, aes(sample = WR_Accuracy)) +
   stat_qq() + 
   stat_qq_line(color = "blue") +
   facet_wrap(~ Block_Number, ncol = 3) +
-  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "Q-Q Plots: WR Accuracy Across Blocks",
        subtitle = "Checking for Normality in Blocks 1, 2, and 3",
        x = "Theoretical Quantiles",
@@ -121,15 +118,13 @@ ggplot(blocked_aggregated, aes(x = Block_Number, y = WR_Accuracy, fill = Block_N
 ```
 
 ```{r}
-library(tidyverse)
-
 # 1. Prepare data for the Friedman test
 friedman_data <- blocked_aggregated %>%
   # Step A: Drop NA values
   drop_na(IR_Memorability, WR_Accuracy) %>%
   group_by(participant_ID) %>%
   # Step B: Keep ONLY participants who have exactly 3 unique blocks
-  filter(n() == 3, n_distinct(Block_Number) == 3) %>%
+  filter(n_distinct(Block_Number) == 3) %>%
   ungroup() %>%
   # Step C: Convert to factors AFTER filtering so empty levels are completely gone
   mutate(
@@ -146,4 +141,18 @@ print(friedman_ir)
 friedman_wr <- friedman.test(WR_Accuracy ~ Block_Number | participant_ID, data = friedman_data)
 print("Friedman Test for WR Accuracy:")
 print(friedman_wr)
+
+# Count rows in the original aggregated dataset
+rows_before <- nrow(blocked_aggregated)
+
+# Count rows in the cleaned Friedman dataset
+rows_after <- nrow(friedman_data)
+
+# Calculate how many were dropped
+rows_removed <- rows_before - rows_after
+
+# Print the results to the console/document
+print(paste("Starting rows:", rows_before))
+print(paste("Rows kept for Friedman:", rows_after))
+print(paste("Total rows removed:", rows_removed))
 ```
