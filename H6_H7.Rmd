@@ -1,0 +1,507 @@
+---
+title: "H6 and H7 Analysis"
+author: "Team BRSM Team BNT"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readr)
+library(stringr)
+library(lubridate)
+library(nortest)
+```
+
+```{r}
+get_time_of_day <- function(ts) {
+  time_ist <- as_datetime(ts / 1000, tz = "Asia/Kolkata")
+  hour <- hour(time_ist)
+  case_when(
+    hour >= 6  & hour < 16 ~ "Day time",
+    # hour >= 12 & hour < 17 ~ "Afternoon",
+    hour >= 16 & hour < 20 ~ "Evening",
+    TRUE ~ "Night"  
+  )
+}
+prepare_common_columns <- function(df) {
+  df %>%
+    mutate(
+      Accuracy.IR = suppressWarnings(as.numeric(Accuracy.IR)),
+      Accuracy.WR = suppressWarnings(as.numeric(Accuracy.WR)),
+      Reaction_time_IR = suppressWarnings(as.numeric(na_if(Reaction_time_IR, "N/A"))),
+      Reaction_time_WR = suppressWarnings(as.numeric(na_if(Reaction_time_WR, "N/A")))
+    )
+}
+
+safe_normality_tests <- function(x) {
+  x <- x[is.finite(x)]
+  n <- length(x)
+  s <- if (n > 1) sd(x) else NA_real_
+
+  if (n < 3 || is.na(s) || s == 0) {
+    return(tibble(
+      n = n,
+      AD_stat = NA_real_,
+      AD_p = NA_real_,
+      Shapiro_stat = NA_real_,
+      Shapiro_p = NA_real_,
+      normality_note = "Insufficient variability/sample size"
+    ))
+  }
+
+  ad_out <- tryCatch(ad.test(x), error = function(e) NULL)
+  sh_out <- tryCatch(
+    if (n >= 3 && n <= 5000) shapiro.test(x) else NULL,
+    error = function(e) NULL
+  )
+
+  tibble(
+    n = n,
+    AD_stat = if (!is.null(ad_out)) unname(ad_out$statistic) else NA_real_,
+    AD_p = if (!is.null(ad_out)) ad_out$p.value else NA_real_,
+    Shapiro_stat = if (!is.null(sh_out)) unname(sh_out$statistic) else NA_real_,
+    Shapiro_p = if (!is.null(sh_out)) sh_out$p.value else NA_real_,
+    normality_note = case_when(
+      n < 25 ~ "Small sample: prefer Shapiro interpretation",
+      TRUE ~ "Use QQ + AD/Shapiro jointly"
+    )
+  )
+}
+
+wilcox_effect_size_r <- function(wilcox_obj, n_pairs) {
+  if (is.null(wilcox_obj$statistic) || n_pairs <= 0) return(NA_real_)
+  w <- as.numeric(wilcox_obj$statistic)
+  mean_w <- n_pairs * (n_pairs + 1) / 4
+  sd_w <- sqrt(n_pairs * (n_pairs + 1) * (2 * n_pairs + 1) / 24)
+  if (sd_w == 0) return(NA_real_)
+  z <- (w - mean_w) / sd_w
+  abs(z) / sqrt(n_pairs)
+}
+
+kruskal_epsilon_sq <- function(kruskal_obj, n_total, k_groups) {
+  if (is.null(kruskal_obj$statistic) || n_total <= k_groups) return(NA_real_)
+  h <- as.numeric(kruskal_obj$statistic)
+  (h - k_groups + 1) / (n_total - k_groups)
+}
+
+summarise_phase_metrics <- function(df) {
+  df %>%
+    arrange(participant_ID, Timestamp) %>%
+    group_by(participant_ID, Phase) %>%
+    mutate(prev_IR = lag(Accuracy.IR)) %>%
+    summarise(
+      # Treat "novel" as either NA-coded or explicit FALSE-coded non-repeats.
+      # This guards against schema differences across log exports.
+      Novel_Trials = sum((is.na(isRepeat) | isRepeat == FALSE) & Event == "Sentence shown", na.rm = TRUE),
+      Total_Repeats = sum(isRepeat == TRUE & Event == "Sentence shown", na.rm = TRUE),
+      Hits = sum(Event == "IR pressed" & isRepeat == TRUE & Accuracy.IR == 1, na.rm = TRUE),
+      False_Alarms = sum(Event == "IR pressed" & (is.na(isRepeat) | isRepeat == FALSE), na.rm = TRUE),
+      Hit_Rate = if_else(Total_Repeats > 0, Hits / Total_Repeats, 0),
+      False_Alarm_Rate = if_else(Novel_Trials > 0, False_Alarms / Novel_Trials, 0),
+      IR_Memorability = Hit_Rate - False_Alarm_Rate,
+      # WR is conditioned on correctly recognized IR events by task design.
+      WR_correct = sum(Event == "WR pressed" & Accuracy.WR == 1 & prev_IR == 1, na.rm = TRUE),
+      WR_total = sum(Event == "WR pressed" & prev_IR == 1, na.rm = TRUE),
+      WR_Accuracy = if_else(WR_total > 0, WR_correct / WR_total, 0),
+      Avg_RT_IR = mean(Reaction_time_IR, na.rm = TRUE),
+      Avg_RT_WR = mean(Reaction_time_WR, na.rm = TRUE),
+      First_Timestamp = min(Timestamp, na.rm = TRUE),
+      Avg_Timestamp = mean(Timestamp, na.rm = TRUE),
+      Sentence_Shown_Count = sum(Event == "Sentence shown", na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
+extract_phase_data <- function(file_path) {
+  df <- read_csv(file_path, show_col_types = FALSE)
+  colnames(df) <- make.names(colnames(df))
+  df <- prepare_common_columns(df)
+
+  practice_indices <- which(str_detect(df$Event, "^Practice "))
+  rest_indices <- which(df$Event == "Rest Phase started")
+
+  if (length(practice_indices) == 0 || length(rest_indices) < 2) {
+    return(NULL)
+  }
+
+  practice_end <- max(practice_indices)
+
+  practice_data <- df[seq_len(practice_end), ] %>%
+    mutate(
+      Phase = "Practice",
+      Event = str_remove(Event, "^Practice ")
+    ) %>%
+    filter(
+      isTarget == TRUE,
+      Event %in% c("Sentence shown", "IR pressed", "WR pressed", "Missed"),
+      Event != "gap_time",
+      participant_ID != "N/A",
+      Timestamp != "N/A",
+      Button %in% c("Yes", "No", "None", "N/A", "Spacebar")
+    ) %>%
+    filter(
+      (is.na(Reaction_time_IR) | (Reaction_time_IR >= 150 & Reaction_time_IR <= 3000)) &
+      (is.na(Reaction_time_WR) | (Reaction_time_WR >= 150 & Reaction_time_WR <= 3000))
+    )
+
+  block1 <- df[(practice_end + 1):(rest_indices[1] - 1), ] %>% mutate(Block_Number = 1)
+  block2 <- df[(rest_indices[1] + 1):(rest_indices[2] - 1), ] %>% mutate(Block_Number = 2)
+  block3 <- df[(rest_indices[2] + 1):nrow(df), ] %>% mutate(Block_Number = 3)
+  blocks <- list(block1, block2, block3)
+
+  valid_blocks <- list()
+
+  for (block in blocks) {
+    target_trials <- block %>% filter(isTarget == TRUE, Event == "Sentence shown")
+
+    if (nrow(target_trials) != 32) {
+      next
+    }
+
+    validation_trials <- block %>% filter(isValidation == TRUE)
+    correct_val <- sum(validation_trials$isRepeat == TRUE & validation_trials$Accuracy.IR == 1, na.rm = TRUE)
+    wrong_val <- sum(validation_trials$isRepeat == TRUE & validation_trials$Accuracy.IR == 0, na.rm = TRUE)
+    repeat_trials <- validation_trials %>% filter(Event == "Sentence shown", isRepeat == TRUE)
+    ir_presses <- validation_trials %>% filter(Event == "IR pressed", isRepeat == TRUE)
+    missed_val <- nrow(repeat_trials) - nrow(ir_presses)
+
+    if (correct_val > (wrong_val / 2) + missed_val) {
+      valid_blocks <- append(valid_blocks, list(block))
+    }
+  }
+
+  if (length(valid_blocks) == 0) {
+    return(NULL)
+  }
+
+  main_data <- bind_rows(valid_blocks) %>%
+    mutate(Phase = "Main") %>%
+    filter(
+      isTarget == TRUE,
+      Event != "gap_time",
+      participant_ID != "N/A",
+      Timestamp != "N/A",
+      Button %in% c("Yes", "No", "None", "N/A", "Spacebar")
+    ) %>%
+    filter(
+      (is.na(Reaction_time_IR) | (Reaction_time_IR >= 150 & Reaction_time_IR <= 3000)) &
+      (is.na(Reaction_time_WR) | (Reaction_time_WR >= 150 & Reaction_time_WR <= 3000))
+    )
+
+  bind_rows(practice_data, main_data)
+}
+```
+
+```{r}
+log_files <- list.files("dataset", pattern = "\\.log$", full.names = TRUE)
+
+phase_level_dataset <- log_files %>%
+  lapply(extract_phase_data) %>%
+  bind_rows()
+
+participant_phase_metrics <- summarise_phase_metrics(phase_level_dataset) %>%
+  mutate(
+    Phase = factor(Phase, levels = c("Practice", "Main")),
+    Time_of_Day = get_time_of_day(First_Timestamp),
+    Time_of_Day = factor(Time_of_Day, levels = c("Day time", "Evening", "Night"))
+  )
+
+# Minimum number of "Sentence shown" rows retained *per phase* for analysis.
+# IR/WR metrics are proportions over these trials — very few sentences ⇒ very noisy estimates.
+# Practice is short in the protocol (often ~10); Main stacks validated blocks (often 32 per block).
+min_sentences_practice <- 10L
+min_sentences_main <- 32L
+
+participant_phase_metrics <- participant_phase_metrics %>%
+  mutate(
+    min_required = if_else(Phase == "Practice", min_sentences_practice, min_sentences_main),
+    meets_sentence_threshold = Sentence_Shown_Count >= min_required
+  )
+
+participant_phase_metrics
+
+# Rows excluded by phase (before requiring paired H6 data)
+participant_phase_metrics %>%
+  count(Phase, meets_sentence_threshold, name = "n_rows")
+```
+
+```{r}
+# Keep only participants who contribute both practice and main data for H6,
+# and who meet the sentence-count threshold in *each* phase.
+h6_data <- participant_phase_metrics %>%
+  filter(meets_sentence_threshold) %>%
+  group_by(participant_ID) %>%
+  filter(n_distinct(Phase) == 2) %>%
+  ungroup()
+
+h6_counts <- h6_data %>%
+  count(Phase)
+
+h6_counts
+```
+
+```{r}
+# Normality checks for H6 measures
+ggplot(h6_data, aes(sample = IR_Memorability)) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  facet_wrap(~ Phase, ncol = 2) +
+  labs(
+    title = "Q-Q Plots: IR Memorability by Phase",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_minimal()
+
+ggplot(h6_data, aes(sample = WR_Accuracy)) +
+  stat_qq() +
+  stat_qq_line(color = "blue") +
+  facet_wrap(~ Phase, ncol = 2) +
+  labs(
+    title = "Q-Q Plots: WR Accuracy by Phase",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_minimal()
+
+h6_data %>%
+  group_by(Phase) %>%
+  reframe(
+    Measure = c("IR_Memorability", "WR_Accuracy"),
+    bind_rows(
+      safe_normality_tests(IR_Memorability),
+      safe_normality_tests(WR_Accuracy)
+    )
+  )
+```
+
+
+```{r}
+# H6a: IR memorability in practice vs main
+ggplot(h6_data, aes(x = Phase, y = IR_Memorability, group = participant_ID)) +
+  geom_line(alpha = 0.25, color = "gray50") +
+  geom_point(alpha = 0.7, color = "steelblue", size = 2) +
+  geom_boxplot(aes(group = Phase), width = 0.25, outlier.shape = NA, alpha = 0.35) +
+  labs(
+    title = "H6a: IR Memorability from Practice to Main Phase",
+    x = "Experiment Phase",
+    y = "IR Memorability"
+  ) +
+  theme_minimal()
+
+# H6b: WR accuracy in practice vs main
+ggplot(h6_data, aes(x = Phase, y = WR_Accuracy, group = participant_ID)) +
+  geom_line(alpha = 0.25, color = "gray50") +
+  geom_point(alpha = 0.7, color = "seagreen", size = 2) +
+  geom_boxplot(aes(group = Phase), width = 0.25, outlier.shape = NA, alpha = 0.35) +
+  labs(
+    title = "H6b: WR Accuracy from Practice to Main Phase",
+    x = "Experiment Phase",
+    y = "WR Accuracy"
+  ) +
+  theme_minimal()
+```
+
+
+```{r}
+h6_wide <- h6_data %>%
+  select(participant_ID, Phase, IR_Memorability, WR_Accuracy) %>%
+  pivot_wider(
+    names_from = Phase,
+    values_from = c(IR_Memorability, WR_Accuracy)
+  ) %>%
+  drop_na()
+
+wilcox_h6_ir <- wilcox.test(
+  h6_wide$IR_Memorability_Practice,
+  h6_wide$IR_Memorability_Main,
+  paired = TRUE,
+  exact = FALSE,
+  alternative = "less"
+)
+
+wilcox_h6_wr <- wilcox.test(
+  h6_wide$WR_Accuracy_Practice,
+  h6_wide$WR_Accuracy_Main,
+  paired = TRUE,
+  exact = FALSE,
+  alternative = "less"
+)
+
+h6_effect_sizes <- tibble(
+  Measure = c("H6a_IR_Memorability", "H6b_WR_Accuracy"),
+  n_pairs = nrow(h6_wide),
+  wilcox_r = c(
+    wilcox_effect_size_r(wilcox_h6_ir, nrow(h6_wide)),
+    wilcox_effect_size_r(wilcox_h6_wr, nrow(h6_wide))
+  )
+)
+
+print("Wilcoxon signed-rank test for H6a (IR Memorability):")
+print(wilcox_h6_ir)
+
+print("Wilcoxon signed-rank test for H6b (WR Accuracy):")
+print(wilcox_h6_wr)
+
+print("H6 effect sizes (r = |Z|/sqrt(N_pairs)):")
+print(h6_effect_sizes)
+```
+
+
+```{r, echo=FALSE}
+# Optional: inspect Main-phase rows with IR memorability at or extremely near 0 (if any)
+participant_phase_metrics %>%
+  filter(Phase == "Main", meets_sentence_threshold, IR_Memorability <= 1e-6) %>%
+  select(participant_ID, Total_Repeats, Novel_Trials, Hits, False_Alarms, Hit_Rate, False_Alarm_Rate, IR_Memorability, Sentence_Shown_Count)
+```
+
+```{r}
+# H7 uses one row per participant from the main experimental phase.
+h7_data <- participant_phase_metrics %>%
+  filter(Phase == "Main", meets_sentence_threshold) %>%
+  drop_na(Time_of_Day)
+
+h7_group_sizes <- h7_data %>%
+  count(Time_of_Day)
+
+h7_group_sizes
+```
+
+```{r}
+# Normality checks for H7 measures
+ggplot(h7_data, aes(sample = IR_Memorability)) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  facet_wrap(~ Time_of_Day, ncol = 3, drop = FALSE) +
+  labs(
+    title = "Q-Q Plots: IR Memorability by Time of Day (IST)",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_minimal()
+
+ggplot(h7_data, aes(sample = WR_Accuracy)) +
+  stat_qq() +
+  stat_qq_line(color = "blue") +
+  facet_wrap(~ Time_of_Day, ncol = 3, drop = FALSE) +
+  labs(
+    title = "Q-Q Plots: WR Accuracy by Time of Day (IST)",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_minimal()
+
+h7_data %>%
+  group_by(Time_of_Day) %>%
+  reframe(
+    Measure = c("IR_Memorability", "WR_Accuracy"),
+    bind_rows(
+      safe_normality_tests(IR_Memorability),
+      safe_normality_tests(WR_Accuracy)
+    )
+  )
+```
+
+
+```{r}
+# H7a: IR memorability by time of day
+ggplot(h7_data, aes(x = Time_of_Day, y = IR_Memorability, fill = Time_of_Day)) +
+  geom_violin(trim = FALSE, alpha = 0.5) +
+  geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.8) +
+  labs(
+    title = "H7a: IR Memorability by Time of Day",
+    x = "Time of Day",
+    y = "IR Memorability"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# H7b: WR accuracy by time of day
+ggplot(h7_data, aes(x = Time_of_Day, y = WR_Accuracy, fill = Time_of_Day)) +
+  geom_violin(trim = FALSE, alpha = 0.5) +
+  geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.8) +
+  labs(
+    title = "H7b: WR Accuracy by Time of Day",
+    x = "Time of Day",
+    y = "WR Accuracy"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+h7_summary <- h7_data %>%
+  group_by(Time_of_Day) %>%
+  summarise(
+    IR_mean = mean(IR_Memorability, na.rm = TRUE),
+    IR_sd = sd(IR_Memorability, na.rm = TRUE),
+    IR_median = median(IR_Memorability, na.rm = TRUE),
+    WR_mean = mean(WR_Accuracy, na.rm = TRUE),
+    WR_sd = sd(WR_Accuracy, na.rm = TRUE),
+    WR_median = median(WR_Accuracy, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+h7_summary
+```
+
+```{r}
+kruskal_h7_ir <- kruskal.test(IR_Memorability ~ Time_of_Day, data = h7_data)
+kruskal_h7_wr <- kruskal.test(WR_Accuracy ~ Time_of_Day, data = h7_data)
+
+h7_effect_sizes <- tibble(
+  Measure = c("H7a_IR_Memorability", "H7b_WR_Accuracy"),
+  n_total = nrow(h7_data),
+  k_groups = n_distinct(h7_data$Time_of_Day),
+  epsilon_sq = c(
+    kruskal_epsilon_sq(kruskal_h7_ir, nrow(h7_data), n_distinct(h7_data$Time_of_Day)),
+    kruskal_epsilon_sq(kruskal_h7_wr, nrow(h7_data), n_distinct(h7_data$Time_of_Day))
+  )
+)
+
+print("Kruskal-Wallis test for H7a (IR Memorability):")
+print(kruskal_h7_ir)
+
+print("Kruskal-Wallis test for H7b (WR Accuracy):")
+print(kruskal_h7_wr)
+
+print("H7 effect sizes (epsilon squared):")
+print(h7_effect_sizes)
+```
+
+
+```{r}
+pairwise_h7_ir <- NULL
+pairwise_h7_wr <- NULL
+
+if (kruskal_h7_ir$p.value < 0.05) {
+  pairwise_h7_ir <- pairwise.wilcox.test(
+    h7_data$IR_Memorability,
+    h7_data$Time_of_Day,
+    p.adjust.method = "BH",
+    exact = FALSE
+  )
+  print("Pairwise Wilcoxon tests for H7a (IR Memorability):")
+  print(pairwise_h7_ir)
+} else {
+  print("H7a pairwise tests skipped: Kruskal-Wallis not significant.")
+}
+
+if (kruskal_h7_wr$p.value < 0.05) {
+  pairwise_h7_wr <- pairwise.wilcox.test(
+    h7_data$WR_Accuracy,
+    h7_data$Time_of_Day,
+    p.adjust.method = "BH",
+    exact = FALSE
+  )
+  print("Pairwise Wilcoxon tests for H7b (WR Accuracy):")
+  print(pairwise_h7_wr)
+} else {
+  print("H7b pairwise tests skipped: Kruskal-Wallis not significant.")
+}
+```
+
