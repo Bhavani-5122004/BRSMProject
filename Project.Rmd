@@ -26,6 +26,7 @@ process_file <- function(file_path) {
     "Practice WR pressed",
     "Practice Missed"
   )))
+  
   rest_indices <- which(df$Event == "Rest Phase started")
   block1_range <- (practice_index + 1):(rest_indices[1] - 1)
   block2_range <- (rest_indices[1] + 1):(rest_indices[2] - 1)
@@ -33,6 +34,7 @@ process_file <- function(file_path) {
   block1 <- df[block1_range, ]
   block2 <- df[block2_range, ]
   block3 <- df[block3_range, ]
+  
   blocks <- list(block1, block2, block3)
   
   valid_blocks <- list()
@@ -43,14 +45,11 @@ process_file <- function(file_path) {
     if (nrow(target_trials) != 32) {
       next
     }
-
-    validation_trials <- block %>% filter(isValidation == TRUE)
-    correct_val <- sum((validation_trials$isRepeat == TRUE & validation_trials$Accuracy.IR == "1"), na.rm = TRUE)
-    wrong_val   <- sum((validation_trials$isRepeat == TRUE & validation_trials$Accuracy.IR == "0"), na.rm = TRUE)
-    repeat_trials <- validation_trials %>% filter(Event == "Sentence shown", isRepeat == TRUE)
-    ir_presses <- validation_trials %>% filter(Event == "IR pressed", isRepeat == TRUE)
-    missed_val <- nrow(repeat_trials) - nrow(ir_presses)
-    if (correct_val > (wrong_val / 2) + missed_val) {
+    
+    correct_val <- sum((block$isValidation == TRUE & block$Event == "Validation IR pressed"), na.rm = TRUE)
+    wrong_val <- sum((block$Event == "Validation Wrong IR pressed"), na.rm = TRUE)
+    missed_val <- sum((block$isValidation == TRUE & block$Event == "Validation Missed"), na.rm = TRUE)
+    if (correct_val > ((wrong_val / 2) + missed_val)) {
       valid_blocks <- append(valid_blocks, list(block))
     }
   }

@@ -235,6 +235,8 @@ ggplot(aggregated_matrix %>% drop_na(Sentence_Voice), aes(x = Sentence_Voice, y 
   scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H2b: WR Accuracy by Sentence Voice", x = "Voice", y = "WR Accuracy") +
   theme_minimal() + theme(legend.position = "none")
+
+
 ```
 
 ```{r}
@@ -311,6 +313,9 @@ ggplot(voice_effect, aes(x = Sentence_Voice, y = Mean, fill = Metric)) +
   labs(title = "H5: Sentence Voice Effect Magnitude (IR vs WR)", x = "Sentence Voice", y = "Score Magnitude") +
   scale_fill_manual(values = c("steelblue", "seagreen"), labels = c("IR Memorability", "WR Accuracy")) +
   theme_minimal()
+
+
+
 ```
 
 ```{r}
