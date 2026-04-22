@@ -252,12 +252,14 @@ interaction_data <- aggregated_matrix %>%
 # Graph 7 (H3a): Interaction Plot for IR
 ggplot(interaction_data, aes(x = Word_Condition, y = Mean_IR, color = Sentence_Voice, group = Sentence_Voice)) +
   geom_line(linewidth = 1) + geom_point(size = 3) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H3a: Interaction of Word Condition and Voice (IR)", x = "Word Condition", y = "Mean IR Memorability", color = "Voice") +
   theme_minimal()
 
 # Graph 8 (H3b): Interaction Plot for WR 
 ggplot(interaction_data, aes(x = Word_Condition, y = Mean_WR, color = Sentence_Voice, group = Sentence_Voice)) +
   geom_line(linewidth = 1) + geom_point(size = 3) +
+  scale_y_continuous(limits = c(0, NA)) +
   labs(title = "H3b: Interaction of Word Condition and Voice (WR)", x = "Word Condition", y = "Mean WR Accuracy", color = "Voice") +
   theme_minimal()
 ```
