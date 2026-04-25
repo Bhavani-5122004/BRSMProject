@@ -265,6 +265,8 @@ ggplot(interaction_data, aes(x = Word_Condition, y = Mean_WR, color = Sentence_V
 ```
 
 ```{r}
+
+library(coin)
 aggregated_scaled <- aggregated_matrix %>%
   mutate(
     IR_scaled = as.numeric(scale(IR_Memorability)),
@@ -288,6 +290,27 @@ effect_data_long <- effect_data %>%
   pivot_longer(cols = c(IR_mean, WR_mean), names_to = "Metric", values_to = "Mean") %>%
   mutate(SE = ifelse(Metric == "IR_mean", IR_se, WR_se))
 
+long_data <- aggregated_scaled %>%
+  drop_na(Word_Condition) %>%
+  pivot_longer(
+    cols = c(IR_scaled, WR_scaled),
+    names_to = "Metric",
+    values_to = "Score"
+  ) %>%
+  mutate(
+    Metric = ifelse(Metric == "IR_scaled", "IR", "WR"),
+    Word_Condition = as.factor(Word_Condition),
+    Metric = as.factor(Metric),
+    Score = as.numeric(Score)
+  )
+
+perm_test <- independence_test(
+  Score ~ Word_Condition * Metric,
+  data = long_data,
+  distribution = approximate(nresample = 10000)
+)
+
+perm_test
 ggplot(effect_data_long, aes(x = Word_Condition, y = Mean, fill = Metric)) +
   geom_bar(stat = "identity", position = position_dodge()) +
   geom_errorbar(aes(ymin = Mean - SE, ymax = Mean + SE), width = 0.2, position = position_dodge(0.9)) +
@@ -316,6 +339,28 @@ ggplot(voice_effect, aes(x = Sentence_Voice, y = Mean, fill = Metric)) +
   scale_fill_manual(values = c("steelblue", "seagreen"), labels = c("IR Memorability", "WR Accuracy")) +
   theme_minimal()
 
+
+long_voice <- aggregated_scaled %>%
+  drop_na(Sentence_Voice) %>%
+  pivot_longer(
+    cols = c(IR_scaled, WR_scaled),
+    names_to = "Metric",
+    values_to = "Score"
+  ) %>%
+  mutate(
+    Metric = ifelse(Metric == "IR_scaled", "IR", "WR"),
+    Sentence_Voice = as.factor(Sentence_Voice),
+    Metric = as.factor(Metric),
+    Score = as.numeric(Score)
+  )
+
+voice_perm_test <- independence_test(
+  Score ~ Sentence_Voice * Metric,
+  data = long_voice,
+  distribution = approximate(nresample = 10000)
+)
+
+voice_perm_test
 
 
 ```
