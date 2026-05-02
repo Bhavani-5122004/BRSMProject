@@ -310,7 +310,47 @@ perm_test <- independence_test(
   distribution = approximate(nresample = 10000)
 )
 
+print("Permutation test to check if there is a difference in impact of word condition on the metrics:")
 perm_test
+
+# checking if there's a bigger impact of word condition on IR than WR
+effect_size <- function(data, response) {
+  total_mean <- mean(data[[response]], na.rm = TRUE)
+  ss_total <- sum((data[[response]] - total_mean)^2, na.rm = TRUE)
+  ss_between <- data %>%
+    group_by(Word_Condition) %>%
+    summarise(mean_val = mean(.data[[response]], na.rm = TRUE),
+              n = n(), .groups="drop") %>%
+    summarise(sum(n * (mean_val - total_mean)^2)) %>% pull()
+  return(ss_between / ss_total)
+}
+
+ir_eta <- effect_size(aggregated_scaled, "IR_scaled")
+wr_eta <- effect_size(aggregated_scaled, "WR_scaled")
+
+ir_eta
+wr_eta
+print("Difference in effect sizes - positive indicates higher effect on IR")
+ir_eta - wr_eta
+
+
+n_perm <- 10000
+diffs <- numeric(n_perm)
+
+for (i in 1:n_perm) {
+  perm_data <- aggregated_scaled %>%
+    mutate(Word_Condition = sample(Word_Condition))
+  ir_perm <- effect_size(perm_data, "IR_scaled")
+  wr_perm <- effect_size(perm_data, "WR_scaled")
+  diffs[i] <- ir_perm - wr_perm
+}
+
+obs_diff <- ir_eta - wr_eta
+p_value <- mean(abs(diffs) >= abs(obs_diff))
+print("p-value to check if the increase is significant:")
+p_value
+
+
 ggplot(effect_data_long, aes(x = Word_Condition, y = Mean, fill = Metric)) +
   geom_bar(stat = "identity", position = position_dodge()) +
   geom_errorbar(aes(ymin = Mean - SE, ymax = Mean + SE), width = 0.2, position = position_dodge(0.9)) +
@@ -360,45 +400,11 @@ voice_perm_test <- independence_test(
   distribution = approximate(nresample = 10000)
 )
 
+print("Permutation test to check if there is a difference in impact of sentence voice on the metrics:")
 voice_perm_test
 
 
-# checking if there's a bigger impact of word condition on IR than WR
-effect_size <- function(data, response) {
-  total_mean <- mean(data[[response]], na.rm = TRUE)
-  ss_total <- sum((data[[response]] - total_mean)^2, na.rm = TRUE)
-  ss_between <- data %>%
-    group_by(Word_Condition) %>%
-    summarise(mean_val = mean(.data[[response]], na.rm = TRUE),
-              n = n(), .groups="drop") %>%
-    summarise(sum(n * (mean_val - total_mean)^2)) %>% pull()
-  return(ss_between / ss_total)
-}
 
-ir_eta <- effect_size(aggregated_scaled, "IR_scaled")
-wr_eta <- effect_size(aggregated_scaled, "WR_scaled")
-
-ir_eta
-wr_eta
-print("Difference in effect sizes - positive indicates higher effect on IR")
-ir_eta - wr_eta
-
-
-n_perm <- 10000
-diffs <- numeric(n_perm)
-
-for (i in 1:n_perm) {
-  perm_data <- aggregated_scaled %>%
-    mutate(Word_Condition = sample(Word_Condition))
-  ir_perm <- effect_size(perm_data, "IR_scaled")
-  wr_perm <- effect_size(perm_data, "WR_scaled")
-  diffs[i] <- ir_perm - wr_perm
-}
-
-obs_diff <- ir_eta - wr_eta
-p_value <- mean(abs(diffs) >= abs(obs_diff))
-print("p-value to check if the increase is significant:")
-p_value
 
 ```
 
