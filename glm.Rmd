@@ -374,9 +374,6 @@ avg_slopes(model3)
 plot(allEffects(model3))
 cat("AIC value of the model\n")
 AIC(model3)
-
-cat("Plotting Predictions\n")
-plot_predictions(model3, condition = c("Word_Condition", "Sentence_Voice"))
 ```
 
 ```{r}
@@ -406,149 +403,9 @@ plot(allEffects(model4))
 cat("AIC value of the model\n")
 AIC(model4)
 
-cat("Plotting Predictions\n")
-plot_predictions(model4, condition = c("Word_Condition", "Sentence_Voice"))
 ```
 
-```{r}
-# 
-# library(tidyverse)
-# library(stringr)
-# library(lme4)
-# library(marginaleffects)
-# 
-# raw_dataset <- read_csv(
-#   "sentence_memorability_data.csv",
-#   na = c("", "NA", "N/A"),
-#   show_col_types = FALSE
-# )
-# 
-# trial_data <- raw_dataset %>%
-#   filter(isTarget == TRUE) %>%
-#   arrange(participant_ID, Stimulus, Timestamp) %>%
-#   group_by(participant_ID, Stimulus) %>%
-#   mutate(
-#     # Word condition
-#     Word_Condition = case_when(
-#       str_detect(Stimulus, "^HH_")  ~ "HH",
-#       str_detect(Stimulus, "^HVL_") ~ "HL",
-#       str_detect(Stimulus, "^LVH_") ~ "LH",
-#       str_detect(Stimulus, "^LVL_") ~ "LL"
-#     ),
-#     Word_Condition = factor(Word_Condition, levels = c("HH","HL","LH","LL")),
-# 
-#     # Sentence voice
-#     Sentence_Voice = case_when(
-#       str_detect(Stimulus, "_A$") ~ "Active",
-#       str_detect(Stimulus, "_P$") ~ "Passive"
-#     ),
-#     Sentence_Voice = factor(Sentence_Voice, levels = c("Active","Passive")),
-# 
-#     # Convert accuracy
-#     Accuracy.IR = as.numeric(Accuracy.IR),
-#     Accuracy.WR = as.numeric(Accuracy.WR),
-# 
-#     # Lag IR (needed for WR)
-#     prev_IR = lag(Accuracy.IR)
-#   ) %>%
-#   ungroup()
-# 
-# ir_responses <- trial_data %>%
-#   filter(Event == "IR pressed") %>%
-#   select(
-#     participant_ID,
-#     Stimulus,
-#     Accuracy.IR
-#   )
-# 
-# sentence_trials <- trial_data %>%
-#   filter(Event == "Sentence shown") %>%
-#   select(
-#     participant_ID,
-#     Stimulus,
-#     isRepeat,
-#     Word_Condition,
-#     Sentence_Voice
-#   )
-# 
-# ir_data <- sentence_trials %>%
-#   left_join(ir_responses,
-#             by = c("participant_ID", "Stimulus")) %>%
-#   mutate(
-#     IR_correct = case_when(
-#       isRepeat == TRUE  & Accuracy.IR == 1 ~ 1,  # hit
-#       isRepeat == TRUE  & is.na(Accuracy.IR) ~ 0,  # miss (no press)
-#       is.na(isRepeat)   & Accuracy.IR == 1 ~ 0,  # false alarm
-#       is.na(isRepeat)   & is.na(Accuracy.IR) ~ 1  # correct rejection
-#     )
-#   ) %>%
-#   mutate(Stimulus = factor(Stimulus))
-# # Check variation (important debug step)
-# table(ir_data$IR_correct)
-# 
-# ir_data <- ir_data %>%
-#   mutate(
-#     Stimulus = as.factor(Stimulus)
-#   )
-# 
-# model_ir <- glmer(
-#   IR_correct ~ Word_Condition * Sentence_Voice +
-#     (1 | Stimulus),
-#   data = ir_data,
-#   family = binomial,
-#   control = glmerControl(optimizer = "bobyqa")
-# )
-# 
-# summary(model_ir)
-# 
-# 
-# wr_data <- trial_data %>%
-#   filter(Event == "WR pressed", prev_IR == 1) %>%
-#   mutate(
-#     WR_correct = if_else(Accuracy.WR == 1, 1, 0)
-#   )
-# 
-# # Check variation
-# table(wr_data$WR_correct)
-# 
-# wr_data <- wr_data %>%
-#   mutate(
-#     Stimulus = as.factor(Stimulus)
-#   )
-# 
-# model_wr <- glmer(
-#   WR_correct ~ Word_Condition * Sentence_Voice +
-#     (1 | Stimulus),
-#   data = wr_data,
-#   family = binomial,
-#   control = glmerControl(optimizer = "bobyqa")
-# )
-# 
-# summary(model_wr)
-# 
-# # IR predictions
-# plot_predictions(
-#   model_ir,
-#   condition = c("Word_Condition", "Sentence_Voice")
-# ) +
-#   labs(
-#     title = "IR Mixed Model Predictions",
-#     y = "Probability of Correct Recognition"
-#   )
-# 
-# # WR predictions
-# plot_predictions(
-#   model_wr,
-#   condition = c("Word_Condition", "Sentence_Voice")
-# ) +
-#   labs(
-#     title = "WR Mixed Model Predictions",
-#     y = "Probability of Correct Recall"
-#   )
-# 
 
-
-```
 
 
 
