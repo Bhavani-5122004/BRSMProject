@@ -45,27 +45,19 @@ safe_normality_tests <- function(x) {
       n = n,
       AD_stat = NA_real_,
       AD_p = NA_real_,
-      Shapiro_stat = NA_real_,
-      Shapiro_p = NA_real_,
       normality_note = "Insufficient variability/sample size"
     ))
   }
 
   ad_out <- tryCatch(ad.test(x), error = function(e) NULL)
-  sh_out <- tryCatch(
-    if (n >= 3 && n <= 5000) shapiro.test(x) else NULL,
-    error = function(e) NULL
-  )
 
   tibble(
     n = n,
     AD_stat = if (!is.null(ad_out)) unname(ad_out$statistic) else NA_real_,
     AD_p = if (!is.null(ad_out)) ad_out$p.value else NA_real_,
-    Shapiro_stat = if (!is.null(sh_out)) unname(sh_out$statistic) else NA_real_,
-    Shapiro_p = if (!is.null(sh_out)) sh_out$p.value else NA_real_,
     normality_note = case_when(
-      n < 25 ~ "Small sample: prefer Shapiro interpretation",
-      TRUE ~ "Use QQ + AD/Shapiro jointly"
+      n < 25 ~ "Small sample: use AD with QQ interpretation",
+      TRUE ~ "Use QQ + AD jointly"
     )
   )
 }
